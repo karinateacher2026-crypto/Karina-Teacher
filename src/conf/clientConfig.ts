@@ -7,8 +7,8 @@ export const CLIENT_CONFIG = {
   alias_club:"probando",
   cbu_club:"0000000",
   colors: {
-    primary: "#1d4ed8", // Azul Cedetalvo
-    secondary: "#ffffff",
+    primary: "#00337C", // Azul Cedetalvo
+    secondary: "#E40001",
     accent: "#facc15",
   },
   social: {
