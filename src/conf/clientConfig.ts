@@ -3,7 +3,7 @@
 export const CLIENT_CONFIG = {
   name: "Karina teacher",
   shortName: "Ingles",
-  logoUrl: "/logo_club.png",
+  logoUrl: "/logo.jpg",
   alias_club:"probando",
   cbu_club:"0000000",
   colors: {

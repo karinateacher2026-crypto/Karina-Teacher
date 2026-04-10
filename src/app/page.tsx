@@ -86,7 +86,7 @@ export default function Home() {
             className="border border-white/20 hover:border-white px-2 py-1 md:px-3 md:py-1 rounded-lg text-[9px] md:text-xs font-bold uppercase tracking-widest transition-all"
             style={{ backgroundColor: CLIENT_CONFIG.colors.primary }}
           >
-            Nuestro Club
+            Nuestra Escuela
           </Link>
         </div>
         
@@ -106,7 +106,7 @@ export default function Home() {
             <img src="fotopagina1.jpg" alt="Cancha 1" className="w-full h-full object-cover" />
           </div>
           <div className="hidden md:block relative h-full w-full border-r border-white/10">
-            <img src="fotopagina8.png" alt="Cancha 2" className="w-full h-full object-cover" />
+            <img src="fotopagina2.jpg" alt="Cancha 2" className="w-full h-full object-cover" />
           </div>
           <div className="hidden md:block relative h-full w-full">
             <img src="fotopagina3.jpg" alt="Cancha 3" className="w-full h-full object-cover" />
@@ -116,10 +116,10 @@ export default function Home() {
         
         <div className="relative z-20 px-4 py-10 max-w-4xl">
           <h1 className="text-5xl md:text-8xl font-black text-white mb-2 uppercase italic tracking-tighter">
-            VOLEY <span style={{ color: CLIENT_CONFIG.colors.primary }}>CDT</span>
+            KARINA <span style={{ color: CLIENT_CONFIG.colors.primary }}>TEACHER</span>
           </h1>
           <p className="text-lg md:text-2xl text-gray-200 mb-8 font-medium max-w-2xl mx-auto">
-            Pasión por el voley en Mar del Plata. Formación de talentos y competencia de alto nivel.
+            Pasión por el inglés en Mar del Plata. Formación de talentos y lenguaje de alto nivel.
           </p>
           <div className="flex flex-col md:flex-row justify-center gap-4">
             <Link 
