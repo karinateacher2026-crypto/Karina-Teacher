@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /portal/dashboard/
+
+Sitemap: https://www.clublacantera.com.ar/sitemap.xml
