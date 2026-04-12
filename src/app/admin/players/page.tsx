@@ -74,23 +74,63 @@ export default function PlayersPage() {
  const [processingLink, setProcessingLink] = useState(false)
 
  // --- NUEVO: LÓGICA DE ASISTENCIA PARA ADMIN ---
-const [playerStats, setPlayerStats] = useState<Record<string, any[]>>({});
+const [playerStats, setPlayerStats] = useState<Record<string, Record<string, { present: number, total: number }>>>({});
 
 const fetchAttendance = async () => {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const dateLimitStr = thirtyDaysAgo.toISOString().split('T')[0];
 
+  // 1. Traer todas las asistencias de los ultimos 30 dias
   const { data: attData } = await supabase
     .from('attendance')
-    .select('player_id, status')
+    .select('player_id, status, practice_id')
     .gte('created_at', dateLimitStr);
 
-  const stats: any = {};
-  attData?.forEach(row => {
-    if (!stats[row.player_id]) stats[row.player_id] = [];
-    stats[row.player_id].push({ status: row.status });
+  if (!attData || attData.length === 0) {
+    setPlayerStats({});
+    return;
+  }
+
+  // 2. Extraer practice_ids unicos para buscar sus deportes
+  const practiceIds = Array.from(new Set(attData.map(a => a.practice_id).filter(Boolean)));
+
+  // 3. Traer las practicas con su categoria y deporte asociado (evitando N+1 queries)
+  const { data: practicesData } = await supabase
+    .from('practices')
+    .select(`
+      id,
+      categories (
+        deporte_id
+      )
+    `)
+    .in('id', practiceIds);
+
+  // Mapear practice_id -> deporte_id
+  const practiceToDeporte: Record<number, number | null> = {};
+  practicesData?.forEach((p: any) => {
+    practiceToDeporte[p.id] = p.categories?.deporte_id || null;
   });
+
+  // 4. Agrupar estadisticas por player_id y luego por deporte_id
+  // Estructura: stats[player_id][deporte_id] = { present: X, total: Y }
+  const stats: Record<string, Record<string, { present: number, total: number }>> = {};
+
+  attData.forEach(row => {
+    const deporteId = row.practice_id ? practiceToDeporte[row.practice_id] : null;
+    if (!deporteId) return; // Si no hay deporte asociado, ignoramos
+
+    const dIdStr = deporteId.toString();
+
+    if (!stats[row.player_id]) stats[row.player_id] = {};
+    if (!stats[row.player_id][dIdStr]) stats[row.player_id][dIdStr] = { present: 0, total: 0 };
+
+    stats[row.player_id][dIdStr].total++;
+    if (row.status === 'present') {
+      stats[row.player_id][dIdStr].present++;
+    }
+  });
+
   setPlayerStats(stats);
 };
 
@@ -703,6 +743,7 @@ const exportToExcel = () => {
         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Familia</th>
         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nacimiento</th>        
         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Saldo</th>
+        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Asistencia (Últ. 30 días)</th>
         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-6">Acciones</th>
        </tr>
       </thead>
@@ -721,6 +762,43 @@ const exportToExcel = () => {
 </td>
          <td className="px-6 py-4 whitespace-nowrap"><div className={`text-sm font-bold ${player.account_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>{player.account_balance < 0 ? '-' : '+'}${Math.abs(player.account_balance).toLocaleString()}</div></td>
          
+         <td className="px-6 py-4 align-middle min-w-[200px]">
+           <div className="flex h-full w-full rounded-lg border border-gray-100 bg-gray-50 overflow-hidden divide-x divide-gray-200">
+             {(() => {
+               // Filtrar deportes unicos del jugador
+               const userSports = Array.from(new Set((player.user_categories || []).map((uc: any) => ({
+                 id: uc.deportes?.id || uc.deporte_id,
+                 name: uc.deportes?.name
+               })).filter(s => s.id && s.name).map(s => JSON.stringify(s)))).map(s => JSON.parse(s));
+
+               if (userSports.length === 0) {
+                 return <div className="flex-1 p-2 text-center text-[10px] text-gray-400 font-bold uppercase">Sin Deporte</div>;
+               }
+
+               return userSports.map((sport: any) => {
+                 const sportStats = (playerStats[player.id] && playerStats[player.id][sport.id.toString()]) || { present: 0, total: 0 };
+                 const percentage = sportStats.total > 0 ? Math.round((sportStats.present / sportStats.total) * 100) : null;
+
+                 let colorClass = "text-gray-400";
+                 if (percentage !== null) {
+                   if (percentage >= 75) colorClass = "text-green-600";
+                   else if (percentage < 50) colorClass = "text-red-600";
+                   else colorClass = "text-orange-500";
+                 }
+
+                 return (
+                   <div key={sport.id} className="flex-1 flex flex-col items-center justify-center p-2 min-w-[80px]">
+                     <span className="text-[9px] font-black uppercase text-gray-500 truncate w-full text-center" title={sport.name}>{sport.name}</span>
+                     <span className={`text-xs font-bold ${colorClass}`}>
+                       {percentage !== null ? `${percentage}%` : '-'}
+                     </span>
+                   </div>
+                 );
+               });
+             })()}
+           </div>
+         </td>
+
          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium px-6">
   <div className="flex justify-end gap-2">
 
@@ -795,21 +873,61 @@ const exportToExcel = () => {
         </div>
        </div>
 
-       <div className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
-  {/* Columna 1: Nacimiento */}
-  <div className="space-y-0.5 flex-1 pr-2">
-    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-left">Nacimiento</p>
-    <p className="text-xs font-bold text-gray-700 text-left line-clamp-1">
-      {player.birth_date ? format(parseISO(player.birth_date), 'dd/MM/yyyy') : '-'}
-    </p>
+       <div className="flex flex-col gap-2">
+  <div className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
+    {/* Columna 1: Nacimiento */}
+    <div className="space-y-0.5 flex-1 pr-2">
+      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-left">Nacimiento</p>
+      <p className="text-xs font-bold text-gray-700 text-left line-clamp-1">
+        {player.birth_date ? format(parseISO(player.birth_date), 'dd/MM/yyyy') : '-'}
+      </p>
+    </div>
+
+    {/* Columna 2: Saldo */}
+    <div className="space-y-0.5 text-right flex-shrink-0">
+      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Saldo</p>
+      <p className={`text-xs font-black ${player.account_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+        {player.account_balance < 0 ? '-' : '+'}${Math.abs(player.account_balance).toLocaleString()}
+      </p>
+    </div>
   </div>
 
-  {/* Columna 2: Saldo */}
-  <div className="space-y-0.5 text-right flex-shrink-0">
-    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Saldo</p>
-    <p className={`text-xs font-black ${player.account_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-      {player.account_balance < 0 ? '-' : '+'}${Math.abs(player.account_balance).toLocaleString()}
-    </p>
+  {/* Fila Asistencia Mobile */}
+  <div className="bg-gray-50 rounded-lg p-2 flex flex-col w-full border border-gray-100">
+    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 text-center">Asistencia (Últ. 30 días)</p>
+    <div className="flex w-full divide-x divide-gray-200">
+      {(() => {
+        const userSports = Array.from(new Set((player.user_categories || []).map((uc: any) => ({
+          id: uc.deportes?.id || uc.deporte_id,
+          name: uc.deportes?.name
+        })).filter(s => s.id && s.name).map(s => JSON.stringify(s)))).map(s => JSON.parse(s));
+
+        if (userSports.length === 0) {
+          return <div className="flex-1 text-center text-[10px] text-gray-400 font-bold uppercase p-1">Sin Deporte</div>;
+        }
+
+        return userSports.map((sport: any) => {
+          const sportStats = (playerStats[player.id] && playerStats[player.id][sport.id.toString()]) || { present: 0, total: 0 };
+          const percentage = sportStats.total > 0 ? Math.round((sportStats.present / sportStats.total) * 100) : null;
+
+          let colorClass = "text-gray-400";
+          if (percentage !== null) {
+            if (percentage >= 75) colorClass = "text-green-600";
+            else if (percentage < 50) colorClass = "text-red-600";
+            else colorClass = "text-orange-500";
+          }
+
+          return (
+            <div key={sport.id} className="flex-1 flex flex-col items-center justify-center p-1">
+              <span className="text-[9px] font-black uppercase text-gray-500 truncate w-full text-center" title={sport.name}>{sport.name}</span>
+              <span className={`text-xs font-bold ${colorClass}`}>
+                {percentage !== null ? `${percentage}%` : '-'}
+              </span>
+            </div>
+          );
+        });
+      })()}
+    </div>
   </div>
 </div>
 

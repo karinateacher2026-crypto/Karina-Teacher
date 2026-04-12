@@ -1,11 +1,12 @@
-'use client'
+'use client';
 
+import React from 'react';
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { 
   LayoutDashboard, User, LogOut, Menu, Loader2, Edit2, Timer, Save, Upload, 
-  CheckCircle, Clock, ArrowUpRight,FileText, ArrowDownLeft, X, Eye, EyeOff, Activity, ExternalLink, Settings,
+  CheckCircle, Clock, ArrowUpRight,FileText, ArrowDownLeft, X, Eye, EyeOff, Activity, ExternalLink, Settings, ChevronLeft, ChevronRight,
   ShieldCheck, Lock, Shield, Mail, Phone, Bell, MapPin, Calendar, CreditCard, Plus, Trash2,RotateCw, Key, XCircle, Trophy, Check, Camera, AlertTriangle
 } from 'lucide-react'
 import { format, parseISO, differenceInYears } from 'date-fns'
@@ -21,10 +22,10 @@ export default function PortalDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard') 
   const [sidebarOpen, setSidebarOpen] = useState(false) 
   const [realRoles, setRealRoles] = useState<string[]>([]);
-  const [allSports, setAllSports] = useState<any[]>([]); // Todos los deportes del club
- const [selectedDeportes, setSelectedDeportes] = useState<number[]>([]); // IDs de los deportes del socio
+  const [allSports, setAllSports] = useState<any[]>([]); 
+  const [calendarSportFilter, setCalendarSportFilter] = useState<string>('Todos');
+  const [selectedDeportes, setSelectedDeportes] = useState<number[]>([]); 
   
-  // NUEVO: Estado para almacenar la info relacional de deportes y categorías
   const [userSportsInfo, setUserSportsInfo] = useState<any[]>([]);
 
   useEffect(() => {
@@ -43,8 +44,8 @@ export default function PortalDashboard() {
     };
     fetchRoles();
   }, [user?.id]);
-  // Definimos displayCategory basándonos en el primer deporte para el carnet visual
-const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category : 'Sin Categoría';
+
+  const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category : 'Sin Categoría';
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [fileType, setFileType] = useState<'image' | 'pdf'>('image') 
 
@@ -97,6 +98,182 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
   const [uploading, setUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
 
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
+  const [scheduledPractices, setScheduledPractices] = useState<any[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+
+  // --- LÓGICA CORREGIDA Y APLANADA ---
+  useEffect(() => {
+    const fetchAttendanceAndPractices = async () => {
+      if (!user?.id) return;
+      try {
+        setCalendarLoading(true);
+
+        const { data: practicesData, error: pracError } = await supabase
+          .from('practices')
+          .select('id, scheduled_date, observations, categories(name, deportes(name))');
+
+        if (!pracError && practicesData) {
+          setScheduledPractices(practicesData);
+        } else if (pracError) {
+          console.error("Error fetching practices:", pracError);
+        }
+
+        const { data: attData, error: attError } = await supabase
+          .from('attendance')
+          .select('practice_id, status');
+
+        if (!attError && attData) {
+          setAttendanceData(attData);
+        } else if (attError) {
+          console.error("Error fetching attendance:", attError);
+        }
+
+      } catch (err: any) {
+        console.error('Error al cargar calendario:', err.message, err);
+      } finally {
+        setCalendarLoading(false);
+      }
+    };
+
+    fetchAttendanceAndPractices();
+  }, [user?.id, currentDate]);
+
+  const renderAttendanceCalendar = () => {
+    if (calendarLoading) return <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const days = [];
+    const todayStr = getTodayArgentina();
+
+    // 1. Identificamos qué deportes hace este socio en particular
+    const availableSports = Array.from(new Set(userSportsInfo.map(info => info.sport).filter(Boolean)));
+
+    for (let i = 0; i < firstDay; i++) {
+        days.push(<div key={`empty-${i}`} className="h-20 md:h-24 border border-slate-50" />);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+      // 2. Filtramos cruzando Fecha + Deporte Seleccionado
+      const practicesForDay = scheduledPractices.filter(p => {
+          if (!p.scheduled_date) return false;
+          if (p.scheduled_date.split('T')[0] !== dayStr) return false;
+          
+          const practiceSport = p.categories?.deportes?.name;
+          if (calendarSportFilter !== 'Todos' && practiceSport !== calendarSportFilter) return false;
+          
+          return true;
+      });
+      
+      const isPast = dayStr < todayStr;
+      const isToday = dayStr === todayStr;
+
+      days.push(
+        <div key={d} className="h-20 md:h-24 border border-slate-100 p-1 md:p-2 relative flex flex-col justify-between bg-white">
+          <span className={`text-[10px] font-bold ${isToday ? 'text-indigo-600' : 'text-slate-300'}`}>{d}</span>
+
+          <div className="flex flex-col gap-0.5 overflow-hidden">
+            {practicesForDay.map((practice, idx) => {
+              const record = attendanceData.find(r => r.practice_id === practice.id);
+              const hasData = record && (record.status === 'present' || record.status === 'absent');
+
+              let statusLabel = '';
+              let statusClass = '';
+
+              if (hasData) {
+                if (record.status === 'present') {
+                    statusLabel = 'Presente';
+                    statusClass = 'bg-emerald-100 text-emerald-700';
+                } else {
+                    statusLabel = 'Ausente';
+                    statusClass = 'bg-red-100 text-red-700';
+                }
+              } else {
+                if (isToday) {
+                    statusLabel = 'HOY';
+                    statusClass = 'bg-indigo-600 text-white shadow-md';
+                } else if (isPast) {
+                    statusLabel = 'Sin datos';
+                    statusClass = 'bg-slate-100 text-slate-500';
+                } else {
+                    statusLabel = 'Próximo';
+                    statusClass = 'bg-orange-50 text-orange-400';
+                }
+              }
+
+              const practiceName = practice.observations?.replace('Turno: ', '').trim() || 
+                                   practice.categories?.deportes?.name || 
+                                   practice.categories?.name || 
+                                   'Práctica';
+
+              return (
+                <div key={practice.id || idx} className="flex flex-col mb-1">
+                  <div className={`p-0.5 md:p-1 rounded-[4px] text-[6px] md:text-[7px] font-black text-center transition-all ${statusClass}`}>
+                    {statusLabel}
+                  </div>
+                  {!hasData && (
+                    <div className="text-[5px] md:text-[9px] font-black text-slate-500 text-center uppercase truncate leading-none mt-0.5 md:mt-1" title={practiceName}>
+                      {practiceName}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 pb-10 text-left">
+        <div className="mb-6 mt-2 text-left px-4 md:px-0">
+          <h2 className="text-2xl md:text-3xl font-black text-[#1e1b4b] uppercase tracking-tighter">Mi Asistencia</h2>
+          <p className="text-slate-500 text-sm">Calendario de entrenamientos y registro de presencias.</p>
+          
+          {/* 3. ACÁ SE DIBUJAN LAS PÍLDORAS SI HACE MÁS DE 1 DEPORTE */}
+          {availableSports.length > 1 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button 
+                onClick={() => setCalendarSportFilter('Todos')}
+                className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${calendarSportFilter === 'Todos' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50'}`}
+              >
+                Todos
+              </button>
+              {availableSports.map((sport: any) => (
+                <button 
+                  key={sport}
+                  onClick={() => setCalendarSportFilter(sport)}
+                  className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${calendarSportFilter === sport ? 'bg-orange-500 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50'}`}
+                >
+                  {sport}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <div className="bg-white rounded-[32px] md:rounded-[40px] shadow-xl border border-slate-100 overflow-hidden mx-4 md:mx-0">
+          <div className="p-4 md:p-8 bg-slate-50 flex justify-between items-center border-b">
+              <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded-full"><ChevronLeft/></button>
+              <span className="font-black text-[10px] md:text-sm uppercase tracking-[0.2em] text-indigo-950">{currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</span>
+              <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 hover:bg-white rounded-full"><ChevronRight/></button>
+          </div>
+          <div className="grid grid-cols-7">
+            {['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'].map(d => <div key={d} className="bg-slate-50 py-3 md:py-4 text-center text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>)}
+            {days}
+          </div>
+        </div>
+      </div>
+    );
+  };
+  // ------------------------------------------
+
   useEffect(() => { fetchUserData() }, [])
 
   useEffect(() => {
@@ -108,6 +285,17 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  const getTodayArgentina = () => {
+    const now = new Date();
+    const argentinaTime = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+    return argentinaTime;
+  };
 
   const formatCuil = (val: string) => {
     let value = val.replace(/\D/g, ""); 
@@ -152,11 +340,9 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
       if (userData) { 
         setUser(userData); 
 
-        // 1. Traemos TODOS los deportes que ofrece el club (para los botones de edición)
         const { data: deportesClub } = await supabase.from('deportes').select('*').order('name');
         if (deportesClub) setAllSports(deportesClub);
 
-        // 2. Traemos los deportes y categorías que el socio TIENE ASIGNADOS (Relacional)
         const { data: relData } = await supabase
           .from('user_categories')
           .select(`
@@ -171,15 +357,11 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
 
         if (relData) {
             const formatted = relData.map((item: any) => ({
-                // El nombre del deporte ahora viene directo de la relación con deporte_id
                 sport: item.deportes?.name || 'S/D',
-                // El nombre de la categoría viene de categories (puede ser null)
                 category: item.categories?.name || 'S/D'
             }));
             setUserSportsInfo(formatted);
 
-            // 🛠️ CORRECCIÓN CLAVE: 
-            // Sacamos el ID directamente de la tabla principal, no de adentro de categories
             const ids = relData.map((item: any) => item.deporte_id).filter(Boolean);
             setSelectedDeportes(ids);
         }
@@ -231,7 +413,7 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
     } catch (error) { 
       router.replace('/portal') 
     } finally { 
-      setLoading(false) 
+      setLoading(false)
     }
   }
 
@@ -313,7 +495,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
     try {
       const deportesAFijar = Array.from(new Set(selectedDeportes.map(id => Number(id))));
 
-      // Esta llamada ahora es "inteligente" gracias al nuevo SQL
       const { error: rpcError } = await supabase.rpc('sync_user_sports', {
           p_user_id: user.id,
           p_deporte_ids: deportesAFijar
@@ -321,9 +502,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
 
       if (rpcError) throw rpcError;
       
-      // ... resto del update de la tabla 'users'
-
-      // 3. ACTUALIZACIÓN DE DATOS DEL PERFIL (Igual que antes)
       const combinedPayerNames = payers.map(p => p.name).filter(n => n !== "").join(' / ');
       const combinedPayerCuils = payers.map(p => p.cuil).filter(c => c !== "").join(' / ');
 
@@ -346,7 +524,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
       const { error: userUpdateError } = await supabase.from('users').update(updates).eq('id', user.id);
       if (userUpdateError) throw userUpdateError;
 
-      // 4. FINALIZACIÓN
       setIsEditing(false);
       setMessage({ type: 'success', text: '¡Datos actualizados con éxito!' });
       
@@ -404,7 +581,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
               publicUrl = supabase.storage.from('receipts').getPublicUrl(fileName).data.publicUrl
           }
 
-          // --- AGREGADO: LECTURA DE CATEGORÍAS Y DEPORTES ---
           const { data: userSportsCats } = await supabase
               .from('user_categories')
               .select('deportes(name), categories(name)')
@@ -420,7 +596,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
               if (sportsList.length > 0) finalSport = sportsList.join(' / ')
               if (catsList.length > 0) finalCategory = catsList.join(' / ')
           }
-          // --------------------------------------------------
           
           const { error: insertError } = await supabase.from('payments').insert({
               user_id: user.id, 
@@ -429,12 +604,10 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
               status: 'pending', 
               date: new Date().toISOString(), 
               proof_url: publicUrl,
-              // USAMOS LAS VARIABLES GENERADAS ARRIBA
               category_snapshot: finalCategory,
               sport_snapshot: finalSport
           })
 
-          // El resto de tu lógica original sigue aquí (mensajes de éxito, etc.)
           if (insertError) throw insertError
           setUploadSuccess(true)
           setAmount('')
@@ -509,9 +682,10 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
           </button>
         </div>
         <nav className="flex-1 px-4 space-y-2 mt-6 min-w-[256px] lg:min-w-0 text-left">
-          <button onClick={() => { setActiveTab('dashboard'); if(window.innerWidth < 1024) setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'dashboard' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}><LayoutDashboard size={20} /> {sidebarOpen && <span>Estado de cuenta</span>}</button>
+<button onClick={() => { setActiveTab('dashboard'); if(window.innerWidth < 1024) setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'dashboard' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}><LayoutDashboard size={20} /> {sidebarOpen && <span>Estado de cuenta</span>}</button>
 <button onClick={() => { setActiveTab('profile'); if(window.innerWidth < 1024) setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'profile' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}><User size={20} /> {sidebarOpen && <span>Mi Perfil</span>}</button>
 <button onClick={() => { setActiveTab('payment'); if(window.innerWidth < 1024) setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'payment' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}><Upload size={20} /> {sidebarOpen && <span>Informar Pago</span>}</button>
+          <button onClick={() => { setActiveTab('asistencia'); if(window.innerWidth < 1024) setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'asistencia' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}><Calendar size={20} /> {sidebarOpen && <span>Asistencia</span>}</button>
 
 <button 
             onClick={() => { setActiveTab('performance'); if(window.innerWidth < 1024) setSidebarOpen(false); }} 
@@ -538,11 +712,9 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
         <div className="p-4 border-t border-white/10 min-w-[256px] lg:min-w-0 text-left">
           {/* SECCIÓN DE CAMBIO DE ROL - CONECTADO A BASE DE DATOS */}
           {(() => {
-            // Usamos realRoles que viene directamente de la consulta a la tabla 'users'
             const hasAdmin = realRoles.includes('admin');
             const hasTeacher = realRoles.includes('teacher');
 
-            // Si no tiene ninguno de los dos, no renderizamos NADA
             if (!hasAdmin && !hasTeacher) return null;
 
             return (
@@ -588,7 +760,9 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
           <button onClick={() => setSidebarOpen(true)} className="p-2 bg-white rounded-lg shadow-sm border border-gray-200 text-[#1e1b4b] text-left"><Menu size={24}/></button>
           <h1 className="font-black italic text-sm text-[#1e1b4b] uppercase text-left">{CLIENT_CONFIG.name}</h1>
         </div>
-        {activeTab === 'dashboard' && (
+        {activeTab === 'asistencia' && renderAttendanceCalendar()}
+
+            {activeTab === 'dashboard' && (
           <div className="w-full animate-in fade-in slide-in-from-bottom-4 text-left">
 <div className="mb-6 text-left">
   <h2 className="text-2xl md:text-3xl font-black text-gray-900 uppercase">
@@ -612,7 +786,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
                         </h3>
                     </div>
 
-                    {/* 🛠️ 🛠️ 🛠️ CORRECCIÓN: BLOQUE "TU CATEGORÍA" DIVIDIDO POR COLUMNAS 🛠️ 🛠️ 🛠️ */}
                     <div className="text-left md:text-right border-t md:border-t-0 pt-3 md:pt-0 w-full md:w-auto text-left">
                       <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase text-left mb-2">TU CATEGORÍA</p>
                       <div className="flex flex-wrap gap-4 md:justify-end">
@@ -626,8 +799,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
                         )}
                       </div>
                     </div>
-                    {/* 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ 🛠️ */}
-
                 </div>
               </div>
 
@@ -638,7 +809,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
       </h3>
       
       <div className="flex gap-2">
-        {/* BOTÓN PARA ALTERNAR VISTA */}
         {payments?.length > 5 && (
           <button 
               onClick={() => setShowAllPayments(!showAllPayments)} 
@@ -648,7 +818,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
           </button>
         )}
         
-        {/* BOTÓN DE REFRESH PARA IPHONE */}
         <button 
             onClick={() => window.location.reload()} 
             className="flex items-center gap-2 text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all active:scale-95 border border-indigo-100"
@@ -700,20 +869,16 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
 
                                 return (
                                     <div key={p.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition gap-3 text-left">
-                                  {/* Agregamos flex-1 y min-w-0 para que entienda dónde es el límite del celu */}
                                   <div className="flex flex-1 items-center gap-3 md:gap-4 min-w-0 text-left">
                                       
-                                      {/* El ícono queda igual */}
                                       <div className={`h-9 w-9 md:h-10 md:w-10 rounded-full flex items-center justify-center shrink-0 ${isRejected ? 'bg-gray-100 text-gray-400' : isAdjustment ? 'bg-blue-100 text-blue-600' : (isDebit || isFee ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600')} text-left`}>
                                           {isRejected ? <XCircle size={16} /> : isAdjustment ? <Settings size={16} /> : (isDebit || isFee ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />)}
                                       </div>
                                       
-                                      {/* VOLAMOS LOS TRUNCATE Y AGREGAMOS whitespace-normal y break-words */}
                                       <div className="flex-1 min-w-0 text-left">
                                           <p className="font-bold text-xs md:text-sm text-gray-800 whitespace-normal break-words text-left">
                                               {displayTitle}
                                           </p>
-                                          {/* Si tenés p.notes abajo, también podés sacarle el truncate si querés que se lea toda la nota */}
                                                 {isAdjustment && p.notes && (
                                                     <p className="text-[10px] text-blue-500 italic font-medium truncate max-w-[200px]">{p.notes}</p>
                                                 )}
@@ -767,7 +932,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
           <button onClick={() => { setIsEditing(false); setFormError(null); }} className="flex-1 md:flex-none bg-white border border-gray-300 px-5 py-2.5 rounded-xl font-bold text-sm text-gray-700 hover:bg-gray-50 shadow-sm text-left">Cancelar</button>
           <button 
             onClick={() => {
-              // VALIDACIÓN ESTRICTA CON ESTÉTICA DEL CLUB
               if (paymentResponsible === 'third_party') {
                 const incompleto = payers.some(p => !p.name?.trim() || !p.cuil?.trim());
                 if (incompleto) {
@@ -800,7 +964,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
     </div>
     
     <div className="space-y-8 text-left">
-      {/* CARTEL CON ESTÉTICA DEL CLUB */}
       {formError && (
         <div className="bg-red-50 border-2 border-red-200 p-4 rounded-2xl animate-in zoom-in duration-300 flex items-center gap-3">
           <div className="bg-red-500 text-white p-1 rounded-full">
@@ -845,7 +1008,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
         <label className="block text-[10px] font-bold text-gray-700 mb-1.5 uppercase ml-1 text-left flex items-center gap-1">Email <span className="text-red-500 font-black text-xs">*</span></label>
         <input disabled={!isEditing} type="email" value={isEditing ? formData.email : user.email} onChange={e => setFormData({...formData, email: e.target.value})} className={`w-full p-3 border rounded-xl font-bold text-sm outline-none transition text-left ${isEditing ? 'border-gray-400 focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}/>
         
-        {/* MENSAJE PREVENTIVO DINÁMICO */}
         {isEditing && (
           <p className="mt-2 ml-1 text-[10px] font-bold text-indigo-600 uppercase tracking-tight animate-in fade-in slide-in-from-top-1">
               IMPORTANTE: Si modificás tu email, deberás validarlo desde tu nueva casilla para mantener el acceso al sistema.
@@ -964,7 +1126,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
   </div>
   {isEditing && (
     <p className="mt-3 ml-1 text-[9px] font-bold text-indigo-400 uppercase italic">
-      {/* 🛠️ ÚNICO CAMBIO AQUÍ: El texto de advertencia */}
       * Al seleccionar un deporte nuevo, la administración te asignará una categoría a la brevedad.
     </p>
   )}
@@ -1042,7 +1203,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
                 <h2 className="text-xl md:text-2xl font-black text-gray-900 uppercase mb-1">Informar Pago</h2>
                 <p className="text-gray-500 text-xs md:text-sm mb-6 md:mb-8 italic">Informá el comprobante de tu transferencia aquí.</p>
                 
-                {/* TARJETA DE DATOS BANCARIOS - ESTÉTICA INTEGRADA */}
                 <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-left">
                     <p className="text-[10px] font-black text-indigo-900/40 uppercase tracking-widest mb-3 text-center">Tocá los datos para copiarlos</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1060,7 +1220,6 @@ const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category :
                                     document.execCommand('copy');
                                     document.body.removeChild(textArea);
                                 }
-                                // Notificación estética en consola en lugar de alert
                                 console.log('Alias copiado');
                             }}
                         >
