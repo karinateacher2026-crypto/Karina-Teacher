@@ -71,7 +71,7 @@ export default function DashboardProfe() {
         ...a.categories,
         sedeName: a.categories.sedes?.name || 'Sin Sede',
         deporteName: a.categories.deportes?.name || 'Sin Deporte',
-        displayName: `${a.categories.name} (${a.categories.gender})`
+        displayName: `${a.categories.name}`
       })).filter(Boolean);
 
       setTeacher({ id: profeInfo.id, name: profeInfo.name });
@@ -343,7 +343,7 @@ export default function DashboardProfe() {
             >
               {categories.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.gender}) - {c.sedeName} | {c.deporteName}
+                  {c.name} - {c.sedeName} | {c.deporteName}
                 </option>
               ))}
             </select>
@@ -369,7 +369,7 @@ export default function DashboardProfe() {
             {!monthPractices.find(p => p.scheduled_date.startsWith(getTodayArgentina())) ? (
               <div className="bg-white p-10 md:p-20 rounded-[32px] md:rounded-[40px] text-center border-2 border-dashed border-slate-200">
                 <Lock className="mx-auto mb-6 text-slate-200" size={48}/>
-                <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No hay práctica para hoy</p>
+                <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No hay clases para hoy</p>
               </div>
             ) : isAttendanceDone ? (
               <div className="bg-emerald-50 p-10 md:p-20 rounded-[32px] md:rounded-[40px] text-center border-2 border-emerald-100">
@@ -404,7 +404,7 @@ export default function DashboardProfe() {
               <div key={cat.id} className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
                 <div className="bg-indigo-900 p-4 md:p-6 text-white">
                   <p className="font-black uppercase italic text-sm md:text-lg leading-none">
-                    {cat.name} <span className="opacity-60 text-xs md:text-sm">({cat.gender})</span>
+                    {cat.name} <span className="opacity-60 text-xs md:text-sm"></span>
                   </p>
                   <div className="flex gap-2 mt-2">
                     <span className="text-[8px] md:text-[10px] font-black bg-white/20 px-2 py-0.5 rounded uppercase tracking-tighter">

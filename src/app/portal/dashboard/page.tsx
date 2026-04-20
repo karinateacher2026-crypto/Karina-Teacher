@@ -236,7 +236,7 @@ export default function PortalDashboard() {
       <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 pb-10 text-left">
         <div className="mb-6 mt-2 text-left px-4 md:px-0">
           <h2 className="text-2xl md:text-3xl font-black text-[#1e1b4b] uppercase tracking-tighter">Mi Asistencia</h2>
-          <p className="text-slate-500 text-sm">Calendario de entrenamientos y registro de presencias.</p>
+          <p className="text-slate-500 text-sm">Calendario de clases y registro de presencias.</p>
           
           {/* 3. ACÁ SE DIBUJAN LAS PÍLDORAS SI HACE MÁS DE 1 DEPORTE */}
           {availableSports.length > 1 && (
