@@ -1,14 +1,14 @@
 // src/config/clientConfig.ts
 
 export const CLIENT_CONFIG = {
-  name: "Karina teacher",
+  name: "Butterflies English Classes",
   shortName: "Ingles",
   logoUrl: "/logo.jpg",
   alias_club:"probando",
   cbu_club:"0000000",
   colors: {
-    primary: "#00337C", // Azul Cedetalvo
-    secondary: "#E40001",
+    primary: "#6A5D91", // Azul Cedetalvo
+    secondary: "#A28CC4",
     accent: "#facc15",
   },
   social: {

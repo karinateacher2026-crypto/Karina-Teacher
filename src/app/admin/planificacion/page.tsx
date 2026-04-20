@@ -318,7 +318,7 @@ export default function AdminPlanner() {
         <div className="flex-1 space-y-8">
           <h2 className="text-2xl font-black text-indigo-950 flex items-center gap-3 uppercase italic">
             <CalendarIcon className="text-indigo-600" size={24} /> 
-            {editingId ? 'Editando Práctica' : 'Planificador de Entrenamientos'}
+            {editingId ? 'Editando Práctica' : 'Planificador de Clases'}
           </h2>
           <div className="space-y-6">
             
@@ -332,9 +332,9 @@ export default function AdminPlanner() {
               </div>
 
               <div className="flex-1 space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seleccionar Deporte</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seleccionar Idioma</label>
                 <select value={selectedDeporteId} onChange={(e) => { setSelectedDeporteId(Number(e.target.value)); setSelectedCatId(''); }} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-indigo-600 transition-all">
-                  <option value="">Elegir deporte...</option>
+                  <option value="">Elegir Idioma...</option>
                   {deportes.map(d => <option key={d.deporte_id} value={d.deporte_id}>{d.name}</option>)}
                 </select>
               </div>
@@ -348,7 +348,7 @@ export default function AdminPlanner() {
                 disabled={!selectedSedeId || !selectedDeporteId}
                 className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-indigo-600 transition-all disabled:opacity-50"
               >
-                <option value="">{!selectedSedeId || !selectedDeporteId ? 'Selecciona sede y deporte primero...' : 'Elegir categoría...'}</option>
+                <option value="">{!selectedSedeId || !selectedDeporteId ? 'Selecciona sede e Idioma primero...' : 'Elegir curso...'}</option>
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name} ({cat.gender})</option>)}
               </select>
             </div>
@@ -438,7 +438,7 @@ export default function AdminPlanner() {
                 }} 
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 min-w-[120px]"
               >
-                <option value="">Deporte: Todos</option>
+                <option value="">Idioma: Todos</option>
                 {deportes.map(d => <option key={d.deporte_id} value={d.deporte_id}>{d.name}</option>)}
               </select>
 
@@ -448,7 +448,7 @@ export default function AdminPlanner() {
                 onChange={(e) => setFilterCatId(e.target.value === '' ? '' : Number(e.target.value))} 
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 max-w-[200px] truncate"
               >
-                <option value="">Categoría: Todas</option>
+                <option value="">Curso: Todas</option>
                 {/* Mostramos todas, pero el filter acumulativo se encarga de la lógica */}
                 {[...new Set(existingPractices.map(p => JSON.stringify({id: p.categories?.id, name: p.categories?.name, gender: p.categories?.gender, sede: p.categories?.sede_id, dep: p.categories?.deporte_id})))]
                   .map(str => JSON.parse(str))
@@ -546,7 +546,7 @@ export default function AdminPlanner() {
             ))
           ) : (
             <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-[32px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No se encontraron entrenamientos con estos filtros</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No se encontraron clases con estos filtros</p>
             </div>
           )}
         </div>

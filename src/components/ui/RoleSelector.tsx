@@ -44,7 +44,7 @@ export default function RoleSelector({ roles }: { roles: string[] }) {
             </div>
             <div className="text-left">
               <span className="block font-black text-slate-700 uppercase text-[11px] leading-none">Panel Profesor</span>
-              <span className="text-[10px] text-slate-400 font-bold italic">Docente / Entrenador</span>
+              <span className="text-[10px] text-slate-400 font-bold italic">Docente</span>
             </div>
           </div>
           <div className="text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
@@ -85,7 +85,7 @@ export default function RoleSelector({ roles }: { roles: string[] }) {
             </div>
             <div className="text-left">
               <span className="block font-black text-slate-700 uppercase text-[11px] leading-none">Mi Perfil</span>
-              <span className="text-[10px] text-slate-400 font-bold italic">Socio / Jugador</span>
+              <span className="text-[10px] text-slate-400 font-bold italic">Estudiante</span>
             </div>
           </div>
           <div className="text-orange-500 opacity-0 group-hover:opacity-100 transition-opacity pr-2">

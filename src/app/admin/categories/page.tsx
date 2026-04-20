@@ -105,7 +105,7 @@ export default function AsignacionCategorias() {
     return matchDeporte && matchName && matchEstado;
   });
 
-  if (loading) return <div className="p-10 text-center font-bold text-gray-950">Cargando socios...</div>;
+  if (loading) return <div className="p-10 text-center font-bold text-gray-950">Cargando Estudiantes...</div>;
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] p-4 md:p-6 font-sans relative">
@@ -119,8 +119,8 @@ export default function AsignacionCategorias() {
 
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 px-2">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Socios</h1>
-          <p className="mt-2 text-gray-500">Gestión de categorías del club.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Estudiantes</h1>
+          <p className="mt-2 text-gray-500">Gestión de cursos del Instituto.</p>
         </div>
 
         <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row items-center gap-4">
@@ -143,7 +143,7 @@ export default function AsignacionCategorias() {
               value={selectedDeporteFilter}
               onChange={(e) => setSelectedDeporteFilter(e.target.value)}
             >
-              <option value="todos">Todos los Deportes</option>
+              <option value="todos">Todos los Idiomas</option>
               {deportes.map(d => <option key={d.deporte_id} value={d.deporte_id}>{d.name}</option>)}
             </select>
 
@@ -167,9 +167,8 @@ export default function AsignacionCategorias() {
             const deporteNombre = deportes.find(d => String(d.deporte_id) === String(row.deporte_id))?.name || '-';
             const catsDisponibles = categorias.filter(c => 
               String(c.deporte_id) === String(row.deporte_id) && 
-              String(c.sede_id) === String(row.temp_sede_id) &&
-              c.gender === row.user_gender
-            );
+              String(c.sede_id) === String(row.temp_sede_id)
+                        );
 
             return (
               <div 
@@ -217,7 +216,7 @@ export default function AsignacionCategorias() {
                     >
                       <option value="">Categoría...</option>
                       {catsDisponibles.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} ({c.gender})</option>
+                        <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
                   </div>
@@ -240,11 +239,11 @@ export default function AsignacionCategorias() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                <th className="px-6 py-5">Socio</th>
+                <th className="px-6 py-5">Estudiante</th>
                 <th className="px-4 py-5">Nacimiento</th>
-                <th className="px-4 py-5">Deporte</th>
+                <th className="px-4 py-5">Idioma</th>
                 <th className="px-4 py-5">Sede</th>
-                <th className="px-4 py-5">Categoría</th>
+                <th className="px-4 py-5">Curso</th>
                 <th className="px-6 py-5 text-right">Acciones</th>
               </tr>
             </thead>
@@ -254,8 +253,7 @@ export default function AsignacionCategorias() {
                 const deporteNombre = deportes.find(d => String(d.deporte_id) === String(row.deporte_id))?.name || '-';
                 const catsDisponibles = categorias.filter(c => 
                   String(c.deporte_id) === String(row.deporte_id) && 
-                  String(c.sede_id) === String(row.temp_sede_id) &&
-                  c.gender === row.user_gender
+                  String(c.sede_id) === String(row.temp_sede_id)
                 );
 
                 return (
@@ -303,7 +301,7 @@ export default function AsignacionCategorias() {
                       >
                         <option value="" className="text-gray-400">-- Seleccionar --</option>
                         {catsDisponibles.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} ({c.gender})</option>
+                          <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>
                     </td>

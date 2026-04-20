@@ -274,7 +274,7 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tighter italic uppercase">Balance financiero</h1>
-          <p className="text-slate-500 text-sm font-medium mt-1">Control financiero y balance neto del club {CLIENT_CONFIG.name}</p>
+          <p className="text-slate-500 text-sm font-medium mt-1">Control financiero y balance neto de {CLIENT_CONFIG.name}</p>
         </div>
         <div className="flex gap-3">
           <button onClick={exportToCSV} className="bg-[#00b341] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-[#009938] transition-all shadow-sm active:scale-95 text-xs">

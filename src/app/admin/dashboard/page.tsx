@@ -301,7 +301,7 @@ export default function AdminDashboard() {
                   <Search className="absolute left-2 top-2 text-gray-400 text-left" size={14}/>
                   <input 
                     type="text" 
-                    placeholder="Filtrar por Socio..." 
+                    placeholder="Filtrar por Estudiante..." 
                     className="pl-7 pr-3 py-1.5 bg-gray-50 rounded-lg text-xs font-bold text-gray-600 outline-none focus:ring-1 focus:ring-indigo-300 w-40 text-left"
                     value={userSearchTerm}
                     onChange={(e) => handleUserSearch(e.target.value)}
@@ -334,7 +334,7 @@ export default function AdminDashboard() {
             
 
             <select className="bg-gray-50 font-bold text-gray-600 outline-none text-xs cursor-pointer py-1.5 px-3 rounded-lg border border-gray-100 focus:border-indigo-300 text-left" value={sportFilter} onChange={(e) => { setSportFilter(e.target.value); setCategoryFilter('all'); }}>
-                <option value="all">Todos los deportes</option>
+                <option value="all">Todos los Idiomas</option>
                 {dbSports.map(s => (
                     <option key={s.deporte_id} value={s.deporte_id}>{s.name}</option>
                 ))}
@@ -347,7 +347,7 @@ export default function AdminDashboard() {
             </select>
 
             <select className="bg-gray-50 font-bold text-gray-600 outline-none text-xs cursor-pointer py-1.5 px-3 rounded-lg border border-gray-100 focus:border-indigo-300 text-left" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-                <option value="all">Todas las Categorías</option>
+                <option value="all">Todos los cursos</option>
                 {filteredCategories.map(c => (
                     <option key={c.id} value={c.id}>{c.name} ({c.gender})</option>
                 ))}
@@ -401,7 +401,7 @@ export default function AdminDashboard() {
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-left">
               <div className="flex justify-between items-start text-left">
                   <div className="text-left">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-left">Jugadores Morosos</p>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-left">Estudiantes Morosos</p>
                       <h3 className={`text-2xl font-bold mt-1 ${stats.debtorCount > 0 ? 'text-orange-600' : 'text-gray-400'} text-left`}>
                           {stats.debtorCount}
                       </h3>
@@ -445,7 +445,7 @@ export default function AdminDashboard() {
               <div className="space-y-4 text-left">
                   {!quickPayUser ? (
                       <div className="relative text-left">
-                          <label className="text-xs font-bold text-gray-500 uppercase ml-1 text-left">Buscar Jugador</label>
+                          <label className="text-xs font-bold text-gray-500 uppercase ml-1 text-left">Buscar Estudiante</label>
                           <div className="relative mt-1 text-left"><Search className="absolute left-3 top-3 text-gray-400 text-left" size={18}/><input type="text" placeholder="Escribí nombre o CUIL..." className="w-full pl-10 p-3 border border-gray-300 rounded-lg outline-none focus:border-indigo-500 transition font-medium text-gray-700 placeholder-gray-400 text-left" value={searchTerm} onChange={(e) => handleSearch(e.target.value)}/></div>
                           {searchResults.length > 0 && (
                               <div className="absolute z-10 w-full bg-white border border-gray-200 mt-2 rounded-lg shadow-xl max-h-48 overflow-y-auto text-left">

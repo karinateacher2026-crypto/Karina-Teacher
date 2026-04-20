@@ -283,13 +283,13 @@ export default function AdminFees() {
         if (already) continue
         const rels = (p.user_categories as any[]) || []
         let note = ''
-        if (bonusType === 'multi' && rels.length >= 2) note = `Bonificación ${monthName} - Multideporte (${bonusPercent}%)`
+        if (bonusType === 'multi' && rels.length >= 2) note = `Bonificación ${monthName} - MultiIdiomas (${bonusPercent}%)`
         else if (bonusType === 'family' && p.family_id && familyCount[p.family_id] >= 2) note = `Bonificación ${monthName} - Familiar (${bonusPercent}%)`
         if (!note) continue
         const credit = debt * pct
         const allSports = [...new Set(rels.map(r => r.deportes?.name).filter(Boolean))].join(' / ')
         const allCats = [...new Set(rels.map(r => r.categories?.name).filter(Boolean))].join(' / ')
-        records.push({ user_id: p.id, amount: credit, method: 'adjustment', date: new Date().toISOString(), status: 'completed', notes: note, sport_snapshot: allSports || 'Multideporte', category_snapshot: allCats || 'Varias' })
+        records.push({ user_id: p.id, amount: credit, method: 'adjustment', date: new Date().toISOString(), status: 'completed', notes: note, sport_snapshot: allSports || 'MultiIdioma', category_snapshot: allCats || 'Varias' })
         updates.push(supabase.rpc('increment_balance', { x: credit, row_id: p.id }))
       }
       if (!records.length) throw new Error('No hay socios para bonificar o ya fueron procesados.')
@@ -416,7 +416,7 @@ export default function AdminFees() {
     <div className="space-y-6 min-h-screen pb-10 font-sans text-left">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Gestión de Cuotas</h1>
-        <p className="text-gray-500 mt-1">Liquidación inteligente del club.</p>
+        <p className="text-gray-500 mt-1">Liquidación inteligente del Instituto.</p>
       </div>
 
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit border border-gray-200">
@@ -527,7 +527,7 @@ export default function AdminFees() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button onClick={() => { setBonusType('multi'); setShowBonusModal(true) }} className="bg-white p-4 rounded-xl border border-indigo-200 flex flex-col items-center gap-2 hover:bg-indigo-600 group transition-all">
                 <Trophy className="text-indigo-600 group-hover:text-white" size={24} />
-                <span className="font-black text-[10px] uppercase text-indigo-900 group-hover:text-white">Bonif. Multideporte</span>
+                <span className="font-black text-[10px] uppercase text-indigo-900 group-hover:text-white">Bonif. MultiIdioma</span>
               </button>
               <button onClick={() => { setBonusType('family'); setShowBonusModal(true) }} className="bg-white p-4 rounded-xl border border-indigo-200 flex flex-col items-center gap-2 hover:bg-indigo-600 group transition-all">
                 <Users className="text-indigo-600 group-hover:text-white" size={24} />
@@ -593,7 +593,7 @@ export default function AdminFees() {
             </div>
 
             <div className={manualUser === null && filterCats.length > 0 ? 'opacity-40 pointer-events-none' : ''}>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Opción A: Socio Único</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Opción A: Estudiante Único</label>
               {!manualUser ? (
                 <div className="relative">
                   <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />

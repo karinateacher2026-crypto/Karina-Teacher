@@ -157,7 +157,7 @@ export default function AdminPayments() {
   })
 
   const exportToExcel = () => {
-      const headers = ['Fecha', 'Jugador', 'CUIL', 'Detalle', 'Deportes', 'Metodo', 'Monto'].join(';');
+      const headers = ['Fecha', 'Estudiante', 'CUIL', 'Detalle', 'Idioma', 'Metodo', 'Monto'].join(';');
       const rows = filteredPayments.map(p => {
           const user = Array.isArray(p.users) ? p.users[0] : p.users;
           const date = format(parseISO(p.date), 'dd/MM/yyyy');
@@ -225,7 +225,7 @@ export default function AdminPayments() {
                   </div>
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">
                       <select value={sportFilter} onChange={(e) => setSportFilter(e.target.value)} className="bg-transparent text-xs font-bold text-gray-900 outline-none cursor-pointer">
-                          <option value="all">Todos los deportes</option>
+                          <option value="all">Todos los Idiomas</option>
                           {dbSports.map(s => (
                               <option key={s.name} value={s.name}>{s.name}</option>
                           ))}
@@ -240,7 +240,7 @@ export default function AdminPayments() {
           <table className="w-full text-left border-collapse">
               <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      <th className="p-4">Fecha</th><th className="p-4">Jugador</th><th className="p-4">Detalle / Deportes</th><th className="p-4">Método</th><th className="p-4 text-right">Monto</th><th className="p-4 text-center">Acciones</th>
+                      <th className="p-4">Fecha</th><th className="p-4">Estudiante</th><th className="p-4">Detalle / Idioma</th><th className="p-4">Método</th><th className="p-4 text-right">Monto</th><th className="p-4 text-center">Acciones</th>
                   </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
