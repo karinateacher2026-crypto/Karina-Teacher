@@ -52,7 +52,7 @@ export default function AdminLayout({
     { name: 'Pagos', href: '/admin/payments', icon: CreditCard },
     { name: 'Cuotas', href: '/admin/fees', icon: FileText },
     { name: 'Bandeja de Entrada', href: '/admin/inbox', icon: Inbox },
-    { name: 'Balance del Club', href: '/admin/expenses', icon: CircleDollarSign }, // <--- NUEVA LÍNEA
+    { name: 'Balance del Instituto', href: '/admin/expenses', icon: CircleDollarSign }, // <--- NUEVA LÍNEA
   ]
 
   return (
