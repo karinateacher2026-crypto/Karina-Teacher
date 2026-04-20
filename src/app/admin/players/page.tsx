@@ -576,7 +576,7 @@ const fetchAttendance = async () => {
 
  // --- LÓGICA DE EXPORTACIÓN EXCEL ---
 const exportToExcel = () => {
-  const headers = ['Nombre', 'CUIL', 'Email', 'Categoria', 'Sexo', 'Estado', 'Saldo', 'Deportes'];
+  const headers = ['Nombre', 'CUIL', 'Email', 'Cursos', 'Sexo', 'Estado', 'Saldo', 'Idiomas'];
   
   const rows = filteredPlayers.map(p => {
     const dbGender = (p.gender || "").toLowerCase().trim();
@@ -619,7 +619,7 @@ const exportToExcel = () => {
  return (
   <div className="space-y-8 text-left">
    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div><h1 className="text-3xl font-bold tracking-tight text-gray-900">Socios</h1><p className="mt-2 text-gray-500">Gestión de socios del club.</p></div>
+    <div><h1 className="text-3xl font-bold tracking-tight text-gray-900">Socios</h1><p className="mt-2 text-gray-500">Gestión de Estudiantes del Instituto.</p></div>
     <div className="flex gap-2">
      <button 
       onClick={exportToExcel} 
@@ -666,7 +666,7 @@ const exportToExcel = () => {
       onChange={(e) => { setFilterSport(e.target.value); setFilterCategories([]); }}
       className="rounded-lg border-gray-200 bg-gray-50 py-1.5 px-3 text-xs font-bold text-indigo-700 focus:border-indigo-500 focus:ring-indigo-500"
      >
-      <option value="all">Deportes</option>
+      <option value="all">Idiomas</option>
       {dbSports.map(s => <option key={s.deporte_id} value={s.deporte_id.toString()}>{s.name}</option>)}
      </select>
 
@@ -674,7 +674,7 @@ const exportToExcel = () => {
   <button className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 py-1.5 px-3 text-[10px] font-black uppercase text-gray-700 hover:bg-white transition-all shadow-sm">
     <span>
       {filterCategories.length === 0 
-        ? "Categorías" 
+        ? "Cursos" 
         : `${filterCategories.length} Seleccionadas`}
     </span>
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><path d="m6 9 6 6 6-6"/></svg>
@@ -705,7 +705,7 @@ const exportToExcel = () => {
         </label>
       ))}
       {filteredCategoriesForFilter.length === 0 && (
-        <p className="text-[10px] text-gray-400 text-center py-2 font-bold uppercase">Sin categorías.</p>
+        <p className="text-[10px] text-gray-400 text-center py-2 font-bold uppercase">Sin cursos.</p>
       )}
     </div>
     
@@ -1156,7 +1156,7 @@ const exportToExcel = () => {
             {/* DEPORTES */}
             <div className="bg-indigo-50/50 p-3 rounded-2xl border-2 border-indigo-100 mb-4 text-left">
               <label className="block text-[10px] font-black text-indigo-700 uppercase mb-3 flex items-center gap-2 text-left">
-                <Trophy size={14}/> Deportes (Selección Múltiple) <span className="text-red-500 font-black text-xs">*</span>
+                <Trophy size={14}/> Idiomas (Selección Múltiple) <span className="text-red-500 font-black text-xs">*</span>
               </label>
               <div className="flex flex-wrap gap-2">
                 {dbSports.map(sport => (

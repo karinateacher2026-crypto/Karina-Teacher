@@ -125,7 +125,7 @@ export default function AdminProfesPage() {
     
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'Staff_Tecnico.csv');
+    link.setAttribute('download', 'Profesores.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -147,9 +147,9 @@ export default function AdminProfesPage() {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-indigo-950 uppercase italic tracking-tighter">
-            Gestión de Staff Técnico
+            Gestión de Profesores
           </h1>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Asignación de categorías por profesor</p>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Asignación de cursos por profesor</p>
         </div>
         
         <button
@@ -226,14 +226,14 @@ export default function AdminProfesPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Trophy size={12}/> Filtrar por Deporte
+                    <Trophy size={12}/> Filtrar por Idioma
                   </label>
                   <select 
                     value={selectedDeporteId} 
                     onChange={(e) => setSelectedDeporteId(Number(e.target.value))} 
                     className="w-full p-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-xs text-slate-800 outline-none focus:border-indigo-500 transition-all"
                   >
-                    <option value="">Seleccionar Deporte...</option>
+                    <option value="">Seleccionar Idioma...</option>
                     {deportes.map(d => <option key={d.deporte_id} value={d.deporte_id}>{d.name}</option>)}
                   </select>
                 </div>
@@ -262,7 +262,7 @@ export default function AdminProfesPage() {
                 ) : (
                   <div className="col-span-2 py-10 text-center border-2 border-dashed border-slate-100 rounded-3xl">
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                      {!selectedSedeId || !selectedDeporteId ? 'Seleccioná sede y deporte para ver categorías' : 'No hay categorías en esta selección'}
+                      {!selectedSedeId || !selectedDeporteId ? 'Seleccioná sede e Idioma para ver cursos' : 'No hay categorías en esta selección'}
                     </p>
                   </div>
                 )}
@@ -271,7 +271,7 @@ export default function AdminProfesPage() {
           ) : (
             <div className="bg-slate-50 rounded-[40px] border-4 border-dashed border-slate-200 h-full flex flex-col items-center justify-center p-12 text-center text-slate-400">
               <Users size={60} strokeWidth={1} className="mb-4 opacity-20"/>
-              <p className="font-black uppercase tracking-widest text-xs">Seleccioná un profesional para gestionar sus categorías</p>
+              <p className="font-black uppercase tracking-widest text-xs">Seleccioná un profesional para gestionar sus cursos</p>
             </div>
           )}
         </div>

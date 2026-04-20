@@ -104,25 +104,27 @@ export default function PortalDashboard() {
   const [calendarLoading, setCalendarLoading] = useState(true);
 
   // --- LÓGICA CORREGIDA Y APLANADA ---
+  // --- LÓGICA DE ASISTENCIA CORREGIDA ---
   useEffect(() => {
     const fetchAttendanceAndPractices = async () => {
       if (!user?.id) return;
       try {
         setCalendarLoading(true);
 
+        // 1. Traemos las prácticas (esto está bien)
         const { data: practicesData, error: pracError } = await supabase
           .from('practices')
           .select('id, scheduled_date, observations, categories(name, deportes(name))');
 
         if (!pracError && practicesData) {
           setScheduledPractices(practicesData);
-        } else if (pracError) {
-          console.error("Error fetching practices:", pracError);
         }
 
+        // 2. Traemos la asistencia FILTRANDO POR EL USUARIO ACTUAL
         const { data: attData, error: attError } = await supabase
           .from('attendance')
-          .select('practice_id, status');
+          .select('practice_id, status')
+          .eq('player_id', user.id); // <--- CAMBIAMOS 'user_id' POR 'player_id'
 
         if (!attError && attData) {
           setAttendanceData(attData);
@@ -686,21 +688,6 @@ export default function PortalDashboard() {
 <button onClick={() => { setActiveTab('profile'); if(window.innerWidth < 1024) setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'profile' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}><User size={20} /> {sidebarOpen && <span>Mi Perfil</span>}</button>
 <button onClick={() => { setActiveTab('payment'); if(window.innerWidth < 1024) setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'payment' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}><Upload size={20} /> {sidebarOpen && <span>Informar Pago</span>}</button>
           <button onClick={() => { setActiveTab('asistencia'); if(window.innerWidth < 1024) setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'asistencia' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}><Calendar size={20} /> {sidebarOpen && <span>Asistencia</span>}</button>
-
-<button 
-            onClick={() => { setActiveTab('performance'); if(window.innerWidth < 1024) setSidebarOpen(false); }} 
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'performance' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}
-          >
-            <Timer size={20} /> {sidebarOpen && <span>Rendimiento</span>}
-          </button>
-
-          <button 
-            onClick={() => { setActiveTab('history'); if(window.innerWidth < 1024) setSidebarOpen(false); }} 
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'history' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}
-          >
-            <Trophy size={20} /> {sidebarOpen && <span>Historia y valores</span>}
-          </button>
-
           <button 
             onClick={() => { setActiveTab('terms'); if(window.innerWidth < 1024) setSidebarOpen(false); }} 
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${activeTab === 'terms' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}
@@ -1102,7 +1089,7 @@ export default function PortalDashboard() {
         <div className="space-y-4 text-left">
           <div className={`p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 mb-2 transition-all ${isEditing ? 'opacity-100' : 'opacity-80'} text-left`}>
   <label className="flex items-center gap-2 text-[10px] font-black text-indigo-700 uppercase tracking-widest mb-3 ml-1 text-left">
-    <Trophy size={14}/> Deportes Ofrecidos <span className="text-red-500 font-black text-xs">*</span>
+    <Trophy size={14}/> Idiomas Ofrecidos <span className="text-red-500 font-black text-xs">*</span>
   </label>
   <div className="flex flex-wrap gap-2 text-left">
     {allSports.map((sport) => (
@@ -1306,205 +1293,6 @@ export default function PortalDashboard() {
         )}
     </div>
 )}
-
-        {/* SECCIÓN NUESTRA HISTORIA */}
-{activeTab === 'history' && (
-    <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 pb-10 text-left">
-        
-        {/* CARRETE DE 5 FOTOS (Horizontales con Scroll) */}
-        <div className="w-full mb-8 shadow-2xl border-b-4 border-orange-500 rounded-xl overflow-hidden">
-            <div className="flex flex-col gap-2 bg-gray-100 max-h-[50vh] overflow-y-auto scrollbar-hide">
-                <img src="/carre1.png" alt="Equipo 1" className="w-full h-auto object-contain" />
-                <img src="/carre2.png" alt="Equipo 2" className="w-full h-auto object-contain" />
-                <img src="/carre3.png" alt="Equipo 3" className="w-full h-auto object-contain" />
-                <img src="/carre4.png" alt="Equipo 4" className="w-full h-auto object-contain" />
-                <img src="/carre5.png" alt="Equipo 5" className="w-full h-auto object-contain" />
-            </div>
-            <div className="bg-indigo-950 text-white text-[10px] py-1 text-center uppercase font-bold tracking-widest opacity-80">
-                Deslizá para ver más fotos
-            </div>
-        </div>
-
-        <div className="mb-6">
-            <h2 className="text-2xl md:text-3xl font-black text-gray-900 uppercase tracking-tighter">Historia y valores</h2>
-            <p className="text-gray-500 text-sm">El camino de una pasión que no sabe de imposibles.</p>
-        </div>
-
-        {/* BLOQUE DE VALORES */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-indigo-50 p-6 rounded-xl border-l-4 border-indigo-900">
-                <h4 className="font-black text-indigo-900 text-sm uppercase mb-1">Pertenencia</h4>
-                <p className="text-gray-600 text-xs leading-relaxed font-medium">Sentir los colores como nuestra propia casa. Cada socio es parte fundamental de la identidad y el crecimiento de nuestra gran familia.</p>
-            </div>
-            <div className="bg-orange-50 p-6 rounded-xl border-l-4 border-orange-500">
-                <h4 className="font-black text-orange-600 text-sm uppercase mb-1">Compañerismo</h4>
-                <p className="text-gray-600 text-xs leading-relaxed font-medium">El equipo está por encima de las individualidades. Nos apoyamos dentro y fuera de la cancha, creciendo juntos en cada paso.</p>
-            </div>
-            <div className="bg-indigo-50 p-6 rounded-xl border-l-4 border-indigo-900">
-                <h4 className="font-black text-indigo-900 text-sm uppercase mb-1">Respeto</h4>
-                <p className="text-gray-600 text-xs leading-relaxed font-medium">Valorar a cada integrante, rival y autoridad. Es la base de nuestra disciplina y el cimiento de nuestra conducta deportiva e institucional.</p>
-            </div>
-        </div>
-
-        {/* CUERPO DE LA HISTORIA */}
-        <div className="bg-white shadow-2xl rounded-sm border-t-[12px] border-[#1e1b4b] overflow-hidden">
-            <div className="p-8 md:p-12 font-sans text-gray-800 leading-relaxed text-lg text-justify">
-                <div className="mb-10 text-left">
-                    <h3 className="text-3xl font-bold border-b-2 border-orange-500 inline-block pb-2 mb-2 font-sans text-[#1e1b4b]">Raíces y Consolidación</h3>
-                    <p className="text-sm italic text-gray-500 font-sans uppercase tracking-widest">Desde 2008 marcando el camino</p>
-                </div>
-
-                <div className="space-y-6">
-                    <p>La historia de nuestra institución comenzó a forjarse en el año <strong>2008</strong>. Con apenas 7 categorías y un puñado de sueños, el handball empezó a crecer a pasos agigantados. Gracias al trabajo en equipo, logramos imponernos como una potencia regional y nacional, brindando continuamente jugadores de calidad a este deporte.</p>
-                    <p>Para el año 2019, ya contábamos con 12 categorías en ambas ramas, nucleando a más de un centenar de jugadores. Sin embargo, el año <strong>2020</strong> marcó un antes y un después. La pandemia no solo causó estragos económicos, sino que nos dejó sin nuestro espacio físico después de 12 años de trayectoria.</p>
-                    <div className="bg-gray-50 p-6 border-y border-gray-100 italic font-sans text-[#1e1b4b] text-center my-8 leading-normal">
-                        "Cuando muchos bajan los brazos, nosotros decidimos ir para adelante."
-                    </div>
-                    <p>En el <strong>2021</strong>, lejos de rendirnos, fuimos capaces de reconstruir nuestros equipos desde cero. Sin cancha y sin recursos materiales, pero con una convicción de hierro, fundamos formalmente la <strong>Asociación Civil Deportes {CLIENT_CONFIG.name} </strong>.</p>
-                    <p>Hoy, esa pasión y ese amor que desborda siguen siendo el pilar de nuestra casa. Somos un club construido por su gente, para su gente.</p>
-                    <div className="mt-12 pt-8 border-t border-gray-100 text-center">
-                        <img src={CLIENT_CONFIG.logoUrl} className="h-16 mx-auto opacity-30 grayscale" alt="Logo" />
-                        <p className="mt-4 font-black uppercase text-gray-400 font-sans tracking-tighter text-[10px]">{CLIENT_CONFIG.name} - Siempre Adelante</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-)}
-{/* SECCIÓN RENDIMIENTO FÍSICO - VISTA SOCIO FINAL */}
-{activeTab === 'performance' && (
-  <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 pb-10 text-left px-4">
-    <div className="mb-8 mt-2 text-left">
-      <h2 className="text-3xl font-black text-[#1e1b4b] uppercase tracking-tighter text-left">Mi Rendimiento</h2>
-      <p className="text-slate-500 text-sm text-left">Seguimiento de tus récords y evolución física en el club.</p>
-    </div>
-
-    <div className="text-left space-y-8">
-      {evaluaciones && evaluaciones.length > 0 ? (
-        <>
-          {/* TARJETAS DE RÉCORDS HISTÓRICOS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            {/* TARJETA VELOCIDAD */}
-            {evaluaciones.some(e => e.test_type === 'velocidad') && (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between transition-all hover:shadow-md text-left">
-                <div>
-                  <p className="text-[10px] font-bold uppercase mb-1 text-green-600 tracking-widest text-left">Mejor Velocidad</p>
-                  <p className="text-[10px] text-slate-400 font-medium lowercase italic text-left">test de velocidad 20 mts</p>
-                </div>
-                <div className="flex items-baseline gap-1 mt-4">
-                  <p className="text-3xl font-bold text-slate-700 tracking-tight">
-                    {Math.min(...evaluaciones.filter(e => e.test_type === 'velocidad').flatMap(e => [e.attempt_1, e.attempt_2, e.attempt_3].filter(v => v > 0))).toFixed(2)}
-                  </p>
-                  <span className="text-sm font-bold text-slate-400">seg</span>
-                </div>
-              </div>
-            )}
-
-            {/* TARJETA SALTO (FRACCIONADA) */}
-            {evaluaciones.some(e => e.test_type === 'salto') && (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between transition-all hover:shadow-md text-left">
-                <p className="text-[10px] font-bold uppercase mb-3 text-blue-600 tracking-widest text-left">Mejores Saltos (cm)</p>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center border-b border-slate-50 pb-1">
-                    <span className="text-[11px] font-bold text-slate-400">SJ</span>
-                    <span className="text-base font-bold text-slate-600">{Math.max(...evaluaciones.filter(e => e.test_type === 'salto').map(e => e.attempt_1 || 0))}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-b border-slate-50 pb-1">
-                    <span className="text-[11px] font-bold text-slate-400">CMJ</span>
-                    <span className="text-base font-bold text-slate-600">{Math.max(...evaluaciones.filter(e => e.test_type === 'salto').map(e => e.attempt_2 || 0))}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-slate-400">LIBRE</span>
-                    <span className="text-base font-bold text-slate-600">{Math.max(...evaluaciones.filter(e => e.test_type === 'salto').map(e => e.attempt_3 || 0))}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TARJETA RESISTENCIA */}
-            {evaluaciones.some(e => e.test_type === 'resistencia') && (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between transition-all hover:shadow-md text-left">
-                <div>
-                  <p className="text-[10px] font-bold uppercase mb-1 text-purple-600 tracking-widest text-left">Resistencia</p>
-                  <p className="text-[10px] text-slate-400 font-medium italic text-left">Yo-Yo Test (Máximo nivel)</p>
-                </div>
-                <div className="flex items-baseline gap-1 mt-4">
-                  <p className="text-3xl font-bold text-slate-700 tracking-tight">
-                    {Math.max(...evaluaciones.filter(e => e.test_type === 'resistencia').map(e => e.attempt_1 || 0))}
-                  </p>
-                  <span className="text-sm font-bold text-slate-400">Niv</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* HISTORIAL DETALLADO */}
-          <div className="text-left">
-            <h3 className="text-sm font-black text-gray-400 uppercase mb-4 flex items-center gap-2 tracking-widest italic text-left">
-              <Activity size={16}/> Historial Detallado
-            </h3>
-            <div className="flex flex-col gap-3">
-              {evaluaciones.map((test) => {
-                const mejorV = test.test_type === 'velocidad' ? 
-                  Math.min(...[test.attempt_1, test.attempt_2, test.attempt_3].filter(a => a > 0)) : 0;
-                
-                return (
-                  <div key={test.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-gray-50 transition-all text-left">
-                    <div className="text-left">
-                      <div className="flex items-center gap-2 mb-1 text-left">
-                        <span className={`text-[9px] px-2.5 py-1 rounded-lg font-black uppercase text-white ${
-                          test.test_type === 'velocidad' ? 'bg-green-600' : test.test_type === 'salto' ? 'bg-blue-600' : 'bg-purple-600'
-                        }`}>
-                          {test.test_type === 'resistencia' ? 'Yo-Yo Test' : test.test_type}
-                        </span>
-                        <p className="text-xs font-bold text-slate-600 text-left">{new Date(test.test_date).toLocaleDateString('es-AR')}</p>
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight text-left">Categoría: {test.category || 'S/D'}</p>
-                      
-                      {/* LÓGICA DE VISUALIZACIÓN POR TIPO */}
-                      <div className="mt-2">
-                        {test.test_type === 'salto' ? (
-                          <div className="grid grid-cols-3 gap-4 border-t border-slate-50 pt-2">
-                             <div className="flex flex-col"><span className="text-[9px] text-slate-400 font-bold uppercase">SJ</span><span className="text-sm font-black text-slate-600">{test.attempt_1}cm</span></div>
-                             <div className="flex flex-col"><span className="text-[9px] text-slate-400 font-bold uppercase">CMJ</span><span className="text-sm font-black text-slate-600">{test.attempt_2}cm</span></div>
-                             <div className="flex flex-col"><span className="text-[9px] text-slate-400 font-bold uppercase">LIB</span><span className="text-sm font-black text-slate-600">{test.attempt_3}cm</span></div>
-                          </div>
-                        ) : test.test_type === 'velocidad' ? (
-                          <p className="text-[11px] text-slate-400 uppercase font-bold tracking-tight">Intentos: {test.attempt_1}s | {test.attempt_2}s | {test.attempt_3}s</p>
-                        ) : (
-                          <p className="text-[11px] text-slate-400 uppercase font-bold tracking-tight">Nivel máximo alcanzado</p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* SOLO MOSTRAR RESULTADO SI NO ES SALTO */}
-                    {test.test_type !== 'salto' && (
-                      <div className="text-right w-full sm:w-auto border-t sm:border-t-0 pt-3 sm:pt-0 border-gray-50 text-left">
-                        <p className="text-[9px] text-slate-400 font-black uppercase italic leading-none mb-1 text-left">Resultado</p>
-                        <p className={`font-black text-2xl italic tracking-tighter ${
-                          test.test_type === 'velocidad' ? 'text-green-600' : 'text-purple-600'
-                        }`}>
-                          {test.test_type === 'velocidad' ? mejorV.toFixed(2) : test.attempt_1}
-                          <span className="text-xs ml-0.5">{test.test_type === 'velocidad' ? 's' : 'Niv'}</span>
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="bg-white rounded-2xl border-2 border-dashed border-gray-100 p-16 text-center shadow-sm">
-          <Timer className="mx-auto text-gray-200 mb-4" size={48} />
-          <p className="text-slate-400 font-bold uppercase text-xs tracking-widest italic">Aún no se han registrado evaluaciones físicas.</p>
-        </div>
-      )}
-    </div>
-  </div>
-)}
         {/* SECCIÓN TÉRMINOS Y CONDICIONES */}
         {activeTab === 'terms' && (
             <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 pb-10 text-left">
@@ -1517,17 +1305,12 @@ export default function PortalDashboard() {
                     <div className="p-6 md:p-10 space-y-6 text-sm md:text-base text-gray-700 leading-relaxed overflow-y-auto max-h-[70vh]">
                         <section>
                             <h3 className="font-black text-gray-900 uppercase mb-2">1. Aceptación de los Términos</h3>
-                            <p>Al registrarse como socio, el usuario acepta cumplir con el estatuto interno del {CLIENT_CONFIG.name} y las normas de convivencia establecidas.</p>
+                            <p>Al registrarse como socio, el usuario acepta cumplir con el estatuto interno de {CLIENT_CONFIG.name} y las normas de convivencia establecidas.</p>
                         </section>
                         <section>
                             <h3 className="font-black text-gray-900 uppercase mb-2">2. Pago de Cuotas</h3>
                             <p>El socio se compromete al pago mensual de la cuota social. La mora prolongada facultará a la administración a revisar la continuidad en las actividades.</p>
                         </section>
-                        <section>
-                            <h3 className="font-black text-gray-900 uppercase mb-2">3. Uso de Imagen</h3>
-                            <p>Se autoriza al club a utilizar imágenes capturadas en eventos deportivos exclusivamente para fines institucionales y promocionales.</p>
-                        </section>
-
 
                         <div className="mt-8 pt-6 border-t border-gray-100 italic text-gray-400 text-xs">
                             Última actualización: Febrero 2026. {CLIENT_CONFIG.name}.

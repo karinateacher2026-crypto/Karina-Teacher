@@ -245,8 +245,8 @@ export default function Register() {
             onError={(e) => e.currentTarget.style.display = 'none'}
         />
     </div>
-    <h1 className="text-3xl font-black text-gray-900 uppercase italic tracking-tight text-center">Alta de Socio</h1>
-    <p className="text-gray-500 mt-2 text-lg text-center">Completá tu ficha para unirte al club.</p>
+    <h1 className="text-3xl font-black text-gray-900 uppercase italic tracking-tight text-center">Alta de Estudiante</h1>
+    <p className="text-gray-500 mt-2 text-lg text-center">Completá tu ficha para unirte al instituto.</p>
 </div>
 
             {error && (
@@ -307,7 +307,7 @@ export default function Register() {
 
                   <div className="bg-indigo-50/50 p-5 rounded-2xl border-2 border-indigo-100 mt-4 text-left">
                       <label className="block text-xs font-black text-indigo-900 uppercase mb-3 flex items-center gap-2 text-left">
-                        <Trophy size={16}/> Deportes que practica <span className="text-red-500">*</span>
+                        <Trophy size={16}/> Idiomas ofrecidos <span className="text-red-500">*</span>
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
                           {sportsList.map(sport => (
@@ -505,7 +505,7 @@ export default function Register() {
                     <p className="font-bold text-gray-900 text-left">1. RESPONSABLE DE LOS DATOS</p>
                     <p className="text-left">Los datos personales recabados serán incorporados a una base de datos bajo la responsabilidad del <strong>{CLIENT_CONFIG.name}</strong>.</p>
                     <p className="font-bold text-gray-900 text-left">2. FINALIDAD Y DATOS SENSIBLES</p>
-                    <p className="text-left">Se recolectan datos personales y de salud (ficha médica, alergias, contactos de emergencia) con la única finalidad de la gestión administrativa, deportiva y para la atención de emergencias médicas durante las actividades del Club.</p>
+                    <p className="text-left">Se recolectan datos personales y de salud (ficha médica, alergias, contactos de emergencia) con la única finalidad de la gestión administrativa y para la atención de emergencias médicas durante las actividades realizadas.</p>
                     <p className="font-bold text-gray-900 text-left">3. CONSENTIMIENTO</p>
                     <p className="text-left">Al aceptar, usted presta su <strong>consentimiento expreso e informado</strong> para el tratamiento de sus datos personales y sensibles conforme a la Ley 25.326 de Protección de Datos Personales.</p>
                 </div>

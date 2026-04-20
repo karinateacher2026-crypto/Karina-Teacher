@@ -351,9 +351,9 @@ export default function PortalLogin() {
         </div>
 
         <div className="mt-8 text-center pt-6 border-t border-gray-100 text-left">
-            <p className="text-gray-400 text-sm font-medium mb-2 text-center">¿Sos nuevo en el club?</p>
+            <p className="text-gray-400 text-sm font-medium mb-2 text-center">¿Sos nuevo en el instituto?</p>
             <div className="text-center">
-              <Link href="/portal/register" className="text-blue-600 font-black hover:text-blue-800 hover:underline uppercase text-sm">Crear mi cuenta de socio</Link>
+              <Link href="/portal/register" className="text-blue-600 font-black hover:text-blue-800 hover:underline uppercase text-sm">Crear mi cuenta de estudiante</Link>
             </div>
         </div>
       </div>
