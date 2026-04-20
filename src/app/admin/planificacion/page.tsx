@@ -239,7 +239,7 @@ export default function AdminPlanner() {
                   {formatDateSafely(selectedHistoryPractice.scheduled_date)}
                 </h3>
                 <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-2">
-                  {selectedHistoryPractice.categories?.name} ({selectedHistoryPractice.categories?.gender})
+                  {selectedHistoryPractice.categories?.name}
                 </p>
               </div>
               <button onClick={() => setSelectedHistoryPractice(null)} className="p-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
@@ -349,7 +349,7 @@ export default function AdminPlanner() {
                 className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-indigo-600 transition-all disabled:opacity-50"
               >
                 <option value="">{!selectedSedeId || !selectedDeporteId ? 'Selecciona sede e Idioma primero...' : 'Elegir curso...'}</option>
-                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name} ({cat.gender})</option>)}
+                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
 
@@ -450,11 +450,11 @@ export default function AdminPlanner() {
               >
                 <option value="">Curso: Todas</option>
                 {/* Mostramos todas, pero el filter acumulativo se encarga de la lógica */}
-                {[...new Set(existingPractices.map(p => JSON.stringify({id: p.categories?.id, name: p.categories?.name, gender: p.categories?.gender, sede: p.categories?.sede_id, dep: p.categories?.deporte_id})))]
+                {[...new Set(existingPractices.map(p => JSON.stringify({id: p.categories?.id, name: p.categories?.name, sede: p.categories?.sede_id, dep: p.categories?.deporte_id})))]
                   .map(str => JSON.parse(str))
                   .filter(c => (filterSedeId === '' || c.sede === filterSedeId) && (filterDeporteId === '' || c.dep === filterDeporteId))
                   .map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name} ({cat.gender})</option>
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))
                 }
               </select>
@@ -514,7 +514,7 @@ export default function AdminPlanner() {
                 <div className="flex flex-col gap-2 mb-4 relative z-10">
                   <div className="flex justify-between items-start w-full">
                     <span className="bg-indigo-50 text-indigo-950 text-[10px] font-black px-3 py-1 rounded-full uppercase italic border border-indigo-100">
-                      {p.categories?.name} ({p.categories?.gender})
+                      {p.categories?.name}
                     </span>
                     
                     <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">

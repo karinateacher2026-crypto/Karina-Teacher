@@ -480,7 +480,7 @@ export default function AdminFees() {
                       className={`w-full text-left px-2 py-1.5 rounded text-[10px] font-bold transition-all ${massiveCats.includes(cat.id) ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-gray-50 text-gray-600 bg-white'}`}
                     >
                       <div className="flex items-center justify-between">
-                        <span>{cat.name} ({cat.gender})</span>
+                        <span>{cat.name}</span>
                         {massiveCats.includes(cat.id) && <Check size={10} />}
                       </div>
                     </button>
@@ -628,7 +628,7 @@ export default function AdminFees() {
                       <span className={`text-[9px] font-black uppercase ${filterCats.includes(cat.id) ? 'text-indigo-100' : 'text-gray-400'}`}>
                         {cat.sedes?.name} / {cat.deportes?.name}
                       </span>
-                      <span className="text-xs font-bold uppercase">{cat.name} ({cat.gender})</span>
+                      <span className="text-xs font-bold uppercase">{cat.name}</span>
                     </div>
                     {filterCats.includes(cat.id) && <Check size={16} strokeWidth={4} />}
                   </button>
