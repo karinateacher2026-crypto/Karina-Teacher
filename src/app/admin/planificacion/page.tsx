@@ -316,7 +316,7 @@ export default function AdminPlanner() {
 
       <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8 bg-white p-6 md:p-10 rounded-[40px] border border-slate-200 shadow-xl relative overflow-hidden">
         <div className="flex-1 space-y-8">
-          <h2 className="text-2xl font-black text-indigo-950 flex items-center gap-3 uppercase italic">
+          <h2 className="text-2xl font-black text-indigo-950 flex items-center gap-3 uppercase italic"> 
             <CalendarIcon className="text-indigo-600" size={24} /> 
             {editingId ? 'Editando Práctica' : 'Planificador de Clases'}
           </h2>
@@ -348,7 +348,7 @@ export default function AdminPlanner() {
                 disabled={!selectedSedeId || !selectedDeporteId}
                 className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-indigo-600 transition-all disabled:opacity-50"
               >
-                <option value="">{!selectedSedeId || !selectedDeporteId ? 'Selecciona sede y deporte primero...' : 'Elegir categoría...'}</option>
+                <option value="">{!selectedSedeId || !selectedDeporteId ? 'Selecciona sede e idioma primero...' : 'Elegir curso...'}</option>
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name} ({cat.gender})</option>)}
               </select>
             </div>

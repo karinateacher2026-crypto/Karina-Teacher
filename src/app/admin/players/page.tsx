@@ -10,7 +10,7 @@ import { CheckCircle2} from 'lucide-react'
 // Interfaces
 interface Player {
  id: string; name: string; email: string; status: string; role: string; cuil?: string; phone?: string; address?: string; birth_date?: string; gender?: string; medical_notes?: string; emergency_contact?: string; emergency_contact_name?: string; account_balance: number;
- payer_name?: string; payer_cuil?: string; family_id?: string; user_categories?: any[];
+ payer_name?: string; payer_cuil?: string; family_id?: string; user_categories?: any[];estudianteAntiguo?: boolean;
 }
 interface Transaction { 
  id: string; 
@@ -58,8 +58,9 @@ export default function PlayersPage() {
  const [formData, setFormData] = useState({ 
   lastName: '', firstName: '', email: '', cuil: '', phone: '', address: '', 
   birth_date: '', gender: '', medical_notes: '', 
-  emergency_contact: '', emergency_contact_name: '' 
- })
+  emergency_contact: '', emergency_contact_name: '',
+  estudianteAntiguo: false
+})
 
  // ESTADOS PARA DEPORTES
  const [selectedSports, setSelectedSports] = useState<string[]>([])
@@ -393,11 +394,19 @@ const fetchAttendance = async () => {
 
   setEditingPlayer(player)
   setFormData({ 
-   lastName, firstName, email: player.email || '', cuil: player.cuil || '', 
-   phone: player.phone || '', address: player.address || '', birth_date: player.birth_date || '', 
-   gender: selectedGender, medical_notes: player.medical_notes || '', 
-   emergency_contact: player.emergency_contact || '', emergency_contact_name: player.emergency_contact_name || '' 
-  })
+   lastName, 
+   firstName, 
+   email: player.email || '', 
+   cuil: player.cuil || '', 
+   phone: player.phone || '', 
+   address: player.address || '', 
+   birth_date: player.birth_date || '', 
+   gender: selectedGender, 
+   medical_notes: player.medical_notes || '', 
+   emergency_contact: player.emergency_contact || '', 
+   emergency_contact_name: player.emergency_contact_name || '',
+   estudianteAntiguo: player.estudianteAntiguo || false // <--- LÍNEA AGREGADA
+})
 
   if (player.payer_name) {
    const names = player.payer_name.split(' / ')
@@ -408,7 +417,7 @@ const fetchAttendance = async () => {
   }
  } else { 
   setEditingPlayer(null)
-  setFormData({ lastName: '', firstName: '', email: '', cuil: '', phone: '', address: '', birth_date: '', gender: '', medical_notes: '', emergency_contact: '', emergency_contact_name: '' }) 
+  setFormData({ lastName: '', firstName: '', email: '', cuil: '', phone: '', address: '', birth_date: '', gender: '', medical_notes: '', emergency_contact: '', emergency_contact_name: '', estudianteAntiguo: false })
   setPayers([{ name: '', cuil: '' }])
   setSelectedSports([])
  }
@@ -446,7 +455,8 @@ const fetchAttendance = async () => {
    emergency_contact: formData.emergency_contact || null, 
    emergency_contact_name: formData.emergency_contact_name || null,
    payer_name: combinedNames || null,
-   payer_cuil: combinedCuils || null
+   payer_cuil: combinedCuils || null,
+   estudianteAntiguo: formData.estudianteAntiguo // <--- ¡TE FALTABA ESTO!
   };
 
   let finalUserId = editingPlayer?.id; 
@@ -801,7 +811,23 @@ const exportToExcel = () => {
 
          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium px-6">
   <div className="flex justify-end gap-2">
-
+    {/* BOTÓN ANTIGÜEDAD (VISTA DESKTOP) */}
+    <button 
+      onClick={async () => {
+        const nuevoEstado = !player.estudianteAntiguo;
+        const { error } = await supabase.from('users').update({ estudianteAntiguo: nuevoEstado }).eq('id', player.id);
+        if (!error) {
+          setPlayers(prev => prev.map(p => p.id === player.id ? {...p, estudianteAntiguo: nuevoEstado} : p));
+          setToastMessage(`${player.name} ahora es ${nuevoEstado ? 'ANTIGUO' : 'NUEVO'}`);
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+        }
+      }}
+      className={`p-1 rounded-md transition ${player.estudianteAntiguo ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
+      title={player.estudianteAntiguo ? "Registrar como alumno nuevo" : "Registrar como alumno antiguo"}
+    >
+      <UserCheck size={18} />
+    </button>
     {/* Tus botones actuales intactos */}
     <button 
       onClick={() => setLinkingPlayer(player)} 
@@ -932,7 +958,35 @@ const exportToExcel = () => {
 </div>
 
        <div className="flex gap-2 pt-1 text-left">
-        <button onClick={() => setLinkingPlayer(player)} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-black uppercase tracking-widest active:scale-95 transition"><LinkIcon size={14}/> Vincular</button>
+        {/* BOTÓN ANTIGÜEDAD (MOBILE) */}
+        <button 
+          onClick={async () => {
+            const nuevoEstado = !player.estudianteAntiguo;
+            const { error } = await supabase
+              .from('users')
+              .update({ estudianteAntiguo: nuevoEstado })
+              .eq('id', player.id);
+            
+            if (!error) {
+              setPlayers(prev => prev.map(p => p.id === player.id ? {...p, estudianteAntiguo: nuevoEstado} : p));
+              setToastMessage(`${player.name} ahora es ${nuevoEstado ? 'ANTIGUO' : 'NUEVO'}`);
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 3000);
+            }
+          }}
+          className={`flex-1 flex items-center justify-center gap-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest active:scale-95 transition border ${
+            player.estudianteAntiguo 
+              ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
+              : 'bg-slate-50 text-slate-400 border-slate-200'
+          }`}
+          title={player.estudianteAntiguo ? "Registrar como alumno nuevo" : "Registrar como alumno antiguo"}
+        >
+          <UserCheck size={14} />
+          {player.estudianteAntiguo ? 'Antiguo' : 'Nuevo'}
+        </button>
+
+        <button 
+          onClick={() => setLinkingPlayer(player)} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-black uppercase tracking-widest active:scale-95 transition"><LinkIcon size={14}/> Vincular</button>
         <button 
          onClick={() => openStatement(player)} 
          className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-black uppercase tracking-widest active:scale-95 transition"
