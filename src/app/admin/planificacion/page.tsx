@@ -5,7 +5,7 @@ import { supabase } from '../../../lib/supabaseClient'
 import { 
   Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, 
   Check, Edit2, Trash2, X, Save, Search, Filter, Users, AlertCircle, Loader2, Info,
-  UserCheck
+  UserCheck, Tag
 } from 'lucide-react';
 
 export default function AdminPlanner() {
@@ -16,13 +16,14 @@ export default function AdminPlanner() {
   const [selectedDeporteId, setSelectedDeporteId] = useState<number | ''>('');
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCatId, setSelectedCatId] = useState<number | ''>('');
+  const [eventType, setEventType] = useState<'clase' | 'examen'>('clase'); // <--- NUEVO ESTADO TIPO EVENTO
 
   // ESTADOS PARA FILTROS DE AGENDA (ABAJO)
   const [filterSedeId, setFilterSedeId] = useState<number | ''>('');
   const [filterDeporteId, setFilterDeporteId] = useState<number | ''>('');
   const [filterCatId, setFilterCatId] = useState<number | ''>('');
-  const [filterMonth, setFilterMonth] = useState<string>(''); // <--- NUEVO FILTRO DE MES
-  const [filterYear, setFilterYear] = useState<string>(''); // <--- NUEVO ESTADO PARA EL AÑO
+  const [filterMonth, setFilterMonth] = useState<string>(''); 
+  const [filterYear, setFilterYear] = useState<string>(''); 
   const [timeFilter, setTimeFilter] = useState<'future' | 'past' | 'all'>('future');
   
   const [assignedProfNames, setAssignedProfNames] = useState<string[]>([]);
@@ -71,7 +72,6 @@ export default function AdminPlanner() {
 
   useEffect(() => { loadData(); }, []);
 
-  // Filtrado de categorías para el PLANIFICADOR (Arriba)
   useEffect(() => {
     const fetchFilteredCategories = async () => {
       if (selectedSedeId && selectedDeporteId) {
@@ -134,17 +134,19 @@ export default function AdminPlanner() {
         const { error } = await supabase.from('practices').update({
           category_id: selectedCatId,
           scheduled_date: dates[0],
-          observations: observationText
+          observations: observationText,
+          event_type: eventType // <--- PERSISTENCIA EN UPDATE
         }).eq('id', editingId);
         if (error) throw error;
-        setNotification({ message: "Entrenamiento actualizado con éxito", type: 'success' });
-        setEditingId(null); setSelectedCatId(''); setDates([]);
+        setNotification({ message: "Evento actualizado con éxito", type: 'success' });
+        setEditingId(null); setSelectedCatId(''); setDates([]); setEventType('clase');
       } else {
         const practicesToInsert = dates.map(date => ({
           category_id: Number(selectedCatId),
           scheduled_date: date,
           location: 'Predio Club',
-          observations: observationText
+          observations: observationText,
+          event_type: eventType // <--- PERSISTENCIA EN INSERT
         }));
         const { error } = await supabase.from('practices').insert(practicesToInsert);
         if (error) throw error;
@@ -165,7 +167,7 @@ export default function AdminPlanner() {
       const { error } = await supabase.from('practices').delete().eq('id', deleteModal.practiceId);
       if (error) throw error;
       setDeleteModal({ show: false, practiceId: null });
-      setNotification({ message: "Entrenamiento eliminado correctamente", type: 'info' });
+      setNotification({ message: "Registro eliminado correctamente", type: 'info' });
       loadData();
     } catch (err: any) {
       setNotification({ message: "No se pudo eliminar el registro", type: 'error' });
@@ -183,6 +185,7 @@ export default function AdminPlanner() {
     e.stopPropagation();
     setEditingId(practice.id);
     setSelectedCatId(practice.category_id);
+    setEventType(practice.event_type || 'clase'); // <--- CARGAR TIPO AL EDITAR
     const fechaLimpia = practice.scheduled_date.split('T')[0];
     setDates([fechaLimpia]);
     const [year, month] = fechaLimpia.split('-').map(Number);
@@ -194,10 +197,9 @@ export default function AdminPlanner() {
 
   const cancelEdit = () => {
     setEditingId(null); setSelectedCatId(''); setDates([]); setStartTime('18:00'); setEndTime('19:30');
-    setSelectedSedeId(''); setSelectedDeporteId('');
+    setSelectedSedeId(''); setSelectedDeporteId(''); setEventType('clase');
   };
 
-  // LÓGICA DE FILTRADO DE LA AGENDA (ABAJO)
   const filteredPractices = [...existingPractices]
     .filter(p => {
       const matchesSede = filterSedeId === '' || p.categories?.sede_id === filterSedeId;
@@ -272,7 +274,7 @@ export default function AdminPlanner() {
               ) : (
                 <div className="py-20 text-center space-y-4 border-2 border-dashed border-slate-100 rounded-[32px]">
                   <AlertCircle className="mx-auto text-slate-200" size={48}/>
-                  <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No hay registros de asistencia para este entrenamiento</p>
+                  <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No hay registros de asistencia</p>
                 </div>
               )}
             </div>
@@ -304,7 +306,7 @@ export default function AdminPlanner() {
             </div>
             <div className="space-y-1">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atención de Seguridad</h3>
-              <p className="font-bold text-slate-700 text-lg">¿Estás seguro de que deseas eliminar este entrenamiento?</p>
+              <p className="font-bold text-slate-700 text-lg">¿Estás seguro de que deseas eliminar este registro?</p>
             </div>
             <div className="grid grid-cols-2 gap-4 pt-4">
               <button onClick={() => setDeleteModal({ show: false, practiceId: null })} className="w-full text-center py-4 rounded-xl text-[10px] font-black text-slate-400 uppercase border-2 border-slate-100 hover:bg-slate-50 transition-all">No, cancelar</button>
@@ -318,7 +320,7 @@ export default function AdminPlanner() {
         <div className="flex-1 space-y-8">
           <h2 className="text-2xl font-black text-indigo-950 flex items-center gap-3 uppercase italic"> 
             <CalendarIcon className="text-indigo-600" size={24} /> 
-            {editingId ? 'Editando Práctica' : 'Planificador de Clases'}
+            {editingId ? 'Editando Evento' : 'Planificador de Clases'}
           </h2>
           <div className="space-y-6">
             
@@ -349,8 +351,27 @@ export default function AdminPlanner() {
                 className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:border-indigo-600 transition-all disabled:opacity-50"
               >
                 <option value="">{!selectedSedeId || !selectedDeporteId ? 'Selecciona sede e idioma primero...' : 'Elegir curso...'}</option>
-                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name} ({cat.gender})</option>)}
+                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
+            </div>
+
+            {/* SECTOR TIPO DE EVENTO */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Evento</label>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setEventType('clase')}
+                  className={`flex-1 py-3 rounded-2xl font-black text-[10px] uppercase border-2 transition-all flex items-center justify-center gap-2 ${eventType === 'clase' ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                >
+                  <Users size={14}/> Clase
+                </button>
+                <button 
+                  onClick={() => setEventType('examen')}
+                  className={`flex-1 py-3 rounded-2xl font-black text-[10px] uppercase border-2 transition-all flex items-center justify-center gap-2 ${eventType === 'examen' ? 'bg-orange-500 border-orange-500 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                >
+                  <Tag size={14}/> Examen
+                </button>
+              </div>
             </div>
 
             {selectedCatId && (
@@ -378,7 +399,7 @@ export default function AdminPlanner() {
               <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full p-3 md:p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-800 text-sm md:text-base outline-none focus:border-indigo-600" />
             </div>
             
-            <button onClick={savePractices} disabled={isSaving || !dates.length || !selectedCatId} className="w-full py-5 rounded-2xl font-black text-white bg-orange-500 hover:bg-orange-600 shadow-lg uppercase text-xs transition-all flex items-center justify-center gap-2">
+            <button onClick={savePractices} disabled={isSaving || !dates.length || !selectedCatId} className="w-full py-5 rounded-2xl font-black text-white bg-indigo-950 hover:bg-black shadow-lg uppercase text-xs transition-all flex items-center justify-center gap-2">
               {isSaving && <Loader2 className="animate-spin" size={16}/>}
               {isSaving ? 'Procesando...' : editingId ? 'Guardar Cambios' : `Planificar ${dates.length} Sesiones`}
             </button>
@@ -407,7 +428,7 @@ export default function AdminPlanner() {
         </div>
       </div>
 
-      {/* AGENDA PROGRAMADA CON FILTROS MEJORADOS */}
+      {/* AGENDA PROGRAMADA */}
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
             <div className="flex items-center gap-2">
@@ -416,12 +437,11 @@ export default function AdminPlanner() {
             </div>
             
             <div className="flex flex-wrap justify-end gap-3 w-full md:w-auto">
-              {/* FILTRO SEDE */}
               <select 
                 value={filterSedeId} 
                 onChange={(e) => { 
                   setFilterSedeId(e.target.value === '' ? '' : Number(e.target.value));
-                  setFilterCatId(''); // Reset cat al cambiar sede
+                  setFilterCatId('');
                 }} 
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 min-w-[120px]"
               >
@@ -429,12 +449,11 @@ export default function AdminPlanner() {
                 {sedes.map(s => <option key={s.sede_id} value={s.sede_id}>{s.name}</option>)}
               </select>
 
-              {/* FILTRO DEPORTE */}
               <select 
                 value={filterDeporteId} 
                 onChange={(e) => { 
                   setFilterDeporteId(e.target.value === '' ? '' : Number(e.target.value));
-                  setFilterCatId(''); // Reset cat al cambiar deporte
+                  setFilterCatId('');
                 }} 
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 min-w-[120px]"
               >
@@ -442,14 +461,12 @@ export default function AdminPlanner() {
                 {deportes.map(d => <option key={d.deporte_id} value={d.deporte_id}>{d.name}</option>)}
               </select>
 
-              {/* FILTRO CATEGORÍA */}
               <select 
                 value={filterCatId} 
                 onChange={(e) => setFilterCatId(e.target.value === '' ? '' : Number(e.target.value))} 
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 max-w-[200px] truncate"
               >
                 <option value="">Curso: Todas</option>
-                {/* Mostramos todas, pero el filter acumulativo se encarga de la lógica */}
                 {[...new Set(existingPractices.map(p => JSON.stringify({id: p.categories?.id, name: p.categories?.name, sede: p.categories?.sede_id, dep: p.categories?.deporte_id})))]
                   .map(str => JSON.parse(str))
                   .filter(c => (filterSedeId === '' || c.sede === filterSedeId) && (filterDeporteId === '' || c.dep === filterDeporteId))
@@ -459,7 +476,6 @@ export default function AdminPlanner() {
                 }
               </select>
           
-                {/* FILTRO DE MES FIJO (ENERO - DICIEMBRE) */}
               <select 
                 value={filterMonth} 
                 onChange={(e) => setFilterMonth(e.target.value)} 
@@ -479,21 +495,19 @@ export default function AdminPlanner() {
                 <option value="11">Noviembre</option>
                 <option value="12">Diciembre</option>
               </select>
-              {/* FILTRO DE AÑO AUTOMÁTICO */}
+
               <select 
                 value={filterYear} 
                 onChange={(e) => setFilterYear(e.target.value)} 
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 min-w-[100px]"
               >
                 <option value="">Año: Todos</option>
-                {/* Extrae los años de la BD y los ordena del más nuevo al más viejo */}
                 {[...new Set(existingPractices.map(p => p.scheduled_date.substring(0, 4)))]
                   .sort((a, b) => b.localeCompare(a)) 
                   .map(yearStr => (
                     <option key={yearStr} value={yearStr}>{yearStr}</option>
                 ))}
               </select>
-              
               
               <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
                  <button onClick={() => setTimeFilter('past')} className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${timeFilter === 'past' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-400'}`}>pasados</button>
@@ -528,8 +542,14 @@ export default function AdminPlanner() {
                       {p.categories?.sedes?.name || 'Sede N/A'}
                     </span>
                     <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase tracking-tighter border border-blue-100">
-                      {p.categories?.deportes?.name || 'Deporte N/A'}
+                      {p.categories?.deportes?.name || 'Idioma N/A'}
                     </span>
+                    {/* INDICADOR VISUAL DE EXAMEN */}
+                    {p.event_type === 'examen' && (
+                      <span className="text-[8px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded uppercase tracking-tighter border border-orange-200 flex items-center gap-1">
+                        <Tag size={8}/> Examen
+                      </span>
+                    )}
                   </div>
                 </div>
                 
@@ -546,7 +566,7 @@ export default function AdminPlanner() {
             ))
           ) : (
             <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-[32px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No se encontraron clases con estos filtros</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No se encontraron eventos con estos filtros</p>
             </div>
           )}
         </div>
