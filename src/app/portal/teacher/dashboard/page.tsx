@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   ClipboardCheck, LogOut, Calendar as CalendarIcon,
   Lock, ChevronLeft, ChevronRight, Users, History,
-  CheckCircle2, UserCheck, UserX, Menu, X, Edit2
+  CheckCircle2, UserCheck, UserX, Menu, X, Edit2, Save
 } from 'lucide-react'
 import { CLIENT_CONFIG } from '@/conf/clientConfig';
 
@@ -38,6 +38,7 @@ export default function DashboardProfe() {
   const [isSaving, setIsSaving] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [attendanceRecord, setAttendanceRecord] = useState<Record<string, string>>({});
+  const [gradesRecord, setGradesRecord] = useState<Record<string, string>>({}); // Nuevo estado para notas
   const [isAttendanceDone, setIsAttendanceDone] = useState(false);
   const [selectedHistoryPractice, setSelectedHistoryPractice] = useState<any | null>(null);
   const [historyAttendance, setHistoryAttendance] = useState<any[]>([]);
@@ -48,7 +49,6 @@ export default function DashboardProfe() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return router.push('/');
 
-      // 1. Obtener asignaciones del profesor
       const { data: assignments } = await supabase
         .from('professor_assignments')
         .select(`
@@ -81,7 +81,6 @@ export default function DashboardProfe() {
       const currentId = selectedCategoryId || profeCats[0]?.id;
       if (!selectedCategoryId) setSelectedCategoryId(currentId);
 
-      // 2. Cargar TODOS los jugadores de TODAS mis categorías
       const { data: relData, error: relError } = await supabase
         .from('user_categories')
         .select(`
@@ -102,12 +101,10 @@ export default function DashboardProfe() {
 
       setAllPlayers(players);
 
-      // 3. Cargar Prácticas y Asistencias para estadísticas generales y vista actual
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const dateLimitStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-      // Traemos prácticas de todas las categorías para las estadísticas de "Divisiones"
       const { data: allPractices } = await supabase
         .from('practices')
         .select('*')
@@ -115,7 +112,6 @@ export default function DashboardProfe() {
         .gte('scheduled_date', dateLimitStr)
         .order('scheduled_date', { ascending: true });
 
-      // Filtrar las del mes para el calendario de la categoría seleccionada
       setMonthPractices(allPractices?.filter(p => p.category_id === currentId) || []);
 
       if (allPractices && allPractices.length > 0) {
@@ -128,27 +124,23 @@ export default function DashboardProfe() {
         const pStats: any = {};
 
         attData?.forEach(row => {
-  // 1. Encontrar a qué categoría pertenece esta práctica específica
-  const practiceInfo = allPractices.find(p => p.id === row.practice_id);
-  const catId = practiceInfo?.category_id;
+          const practiceInfo = allPractices.find(p => p.id === row.practice_id);
+          const catId = practiceInfo?.category_id;
 
-  // 2. Resumen por práctica (para el historial)
-  if (!stats[row.practice_id]) stats[row.practice_id] = { present: 0, absent: 0 };
-  row.status === 'present' ? stats[row.practice_id].present++ : stats[row.practice_id].absent++;
-  
-  // 3. Estadísticas por jugador incluyendo el category_id para filtrar después
-  if (!pStats[row.player_id]) pStats[row.player_id] = [];
-  pStats[row.player_id].push({ 
-    practice_id: row.practice_id, 
-    status: row.status,
-    category_id: catId // <--- Cambio clave: guardamos la categoría
-  });
-});
+          if (!stats[row.practice_id]) stats[row.practice_id] = { present: 0, absent: 0 };
+          row.status === 'present' ? stats[row.practice_id].present++ : stats[row.practice_id].absent++;
+          
+          if (!pStats[row.player_id]) pStats[row.player_id] = [];
+          pStats[row.player_id].push({ 
+            practice_id: row.practice_id, 
+            status: row.status,
+            category_id: catId 
+          });
+        });
 
         setHistorySummary(stats);
         setPlayerStats(pStats);
 
-        // Verificar si ya se tomó asistencia hoy para la categoría seleccionada
         const todayStr = getTodayArgentina();
         const todayPractice = allPractices.find(p => p.category_id === currentId && p.scheduled_date.startsWith(todayStr));
         if (todayPractice) {
@@ -196,6 +188,20 @@ export default function DashboardProfe() {
       const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'practice_id,player_id' });
       if (error) throw error;
       
+      // Guardar notas si es examen
+      if (practiceToSave.event_type === 'examen') {
+        const gradeRows = Object.entries(gradesRecord).map(([playerId, score]) => ({
+          practice_id: practiceToSave.id,
+          player_id: playerId,
+          score: score === '' ? null : parseFloat(score)
+        })).filter(row => row.score !== null);
+
+        if (gradeRows.length > 0) {
+          const { error: gradeError } = await supabase.from('grades').upsert(gradeRows, { onConflict: 'practice_id,player_id' });
+          if (gradeError) throw gradeError;
+        }
+      }
+
       await loadData();
       if (isEditingHistory) {
         setIsEditingHistory(false);
@@ -224,6 +230,9 @@ export default function DashboardProfe() {
       const practice = monthPractices.find(p => p.scheduled_date.startsWith(dayStr));
       const isPast = dayStr < todayStr;
       const isToday = dayStr === todayStr;
+      
+      const isExam = practice?.event_type === 'examen';
+
       days.push(
         <div key={d} className="h-20 md:h-24 border border-slate-100 p-1 md:p-2 relative flex flex-col justify-between">
           <span className={`text-[10px] font-bold ${isToday ? 'text-indigo-600' : 'text-slate-300'}`}>{d}</span>
@@ -231,14 +240,14 @@ export default function DashboardProfe() {
             <div className="flex flex-col gap-0.5 overflow-hidden">
               <div onClick={() => { if (isToday) setActiveTab('asistencia'); else if (isPast) setActiveTab('historial'); }}
                 className={`p-0.5 md:p-1 rounded-[4px] text-[6px] md:text-[7px] font-black text-center transition-all ${
-                  isToday ? 'bg-indigo-600 text-white cursor-pointer shadow-md' :
+                  isToday ? (isExam ? 'bg-orange-600' : 'bg-indigo-600') + ' text-white cursor-pointer shadow-md' :
                   isPast ? 'bg-slate-100 text-slate-500 cursor-pointer hover:bg-indigo-100' :
                   'bg-orange-50 text-orange-400'
                 }`}>
-                {isToday ? 'HOY' : isPast ? 'pasados' : 'proximo'}
+                {isToday ? (isExam ? 'EXAMEN' : 'HOY') : isPast ? 'pasados' : 'proximo'}
               </div>
-              <div className="text-[5px] md:text-[9px] font-black text-slate-500 text-center uppercase truncate leading-none mt-0.5 md:mt-1">
-                {practice.observations?.replace('Turno: ', '').trim() || 'Sin Hora'}
+              <div className={`text-[5px] md:text-[9px] font-black text-center uppercase truncate leading-none mt-0.5 md:mt-1 ${isExam ? 'text-orange-500' : 'text-slate-500'}`}>
+                {practice.title || practice.observations?.replace('Turno: ', '').trim() || 'Sin Hora'}
               </div>
             </div>
           )}
@@ -418,27 +427,21 @@ export default function DashboardProfe() {
 
                 <div className="p-4 md:p-6 space-y-2">
                   {allPlayers.filter(p => p.category_id === cat.id && p.status === 'active').map(p => {
-  // 1. Obtenemos todos los registros del jugador
-  const allRecs = playerStats[p.id] || [];
-  
-  // 2. FILTRO MAESTRO: Solo tomamos las asistencias que pertenecen a ESTA categoría (cat.id)
-  const filteredRecs = allRecs.filter((r: any) => r.category_id === cat.id);
-  
-  // 3. Calculamos el porcentaje basado SOLO en las clases de este deporte/categoría
-  const totalClases = filteredRecs.length;
-  const presentes = filteredRecs.filter((r: any) => r.status === 'present').length;
-  const porc = totalClases > 0 ? Math.round((presentes / totalClases) * 100) : 0;
+                    const allRecs = playerStats[p.id] || [];
+                    const filteredRecs = allRecs.filter((r: any) => r.category_id === cat.id);
+                    const totalClases = filteredRecs.length;
+                    const presentes = filteredRecs.filter((r: any) => r.status === 'present').length;
+                    const porc = totalClases > 0 ? Math.round((presentes / totalClases) * 100) : 0;
 
-  return (
-    <div key={p.id} className="p-3 md:p-4 bg-slate-50 rounded-2xl flex justify-between items-center">
-      <span className="text-[10px] md:text-xs font-black text-slate-700 uppercase">{p.name}</span>
-      <div className={`px-3 py-2 md:px-4 md:py-2 rounded-xl border font-black text-[9px] md:text-[10px] ${porc >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>
-        {totalClases > 0 ? `${porc}% ASIST.` : 'SIN DATOS'}
-      </div>
-    </div>
-  );
-})}
-                  
+                    return (
+                      <div key={p.id} className="p-3 md:p-4 bg-slate-50 rounded-2xl flex justify-between items-center">
+                        <span className="text-[10px] md:text-xs font-black text-slate-700 uppercase">{p.name}</span>
+                        <div className={`px-3 py-2 md:px-4 md:py-2 rounded-xl border font-black text-[9px] md:text-[10px] ${porc >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>
+                          {totalClases > 0 ? `${porc}% ASIST.` : 'SIN DATOS'}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -453,36 +456,57 @@ export default function DashboardProfe() {
                 <div className="bg-white p-6 md:p-8 rounded-[32px] md:rounded-[40px] border border-slate-100 shadow-xl relative">
                   {!isEditingHistory && (
                     <button 
-                      onClick={() => {
+                      onClick={async () => {
                         const editData: Record<string, string> = {};
+                        const editGrades: Record<string, string> = {};
+                        
                         historyAttendance.forEach(att => { editData[att.player_id] = att.status; });
+                        
+                        if (selectedHistoryPractice.event_type === 'examen') {
+                          const { data: gData } = await supabase.from('grades').select('player_id, score').eq('practice_id', selectedHistoryPractice.id);
+                          gData?.forEach(g => { editGrades[g.player_id] = g.score.toString(); });
+                        }
+
                         setAttendanceRecord(editData);
+                        setGradesRecord(editGrades);
                         setIsEditingHistory(true);
                       }}
                       className="absolute top-6 right-6 md:top-8 md:right-8 flex items-center gap-2 bg-orange-50 text-orange-600 px-3 py-2 rounded-xl font-black text-[9px] md:text-[10px] hover:bg-orange-600 hover:text-white transition-all border border-orange-100 shadow-sm"
                     >
-                      <Edit2 size={12}/> EDITAR
+                      <Edit2 size={12}/> EDITAR / CALIFICAR
                     </button>
                   )}
-                  <div className="border-b pb-4 mb-6 md:mb-8">
-                    <h3 className="text-xl md:text-2xl font-black uppercase italic text-indigo-950 pr-16 md:pr-0">
-                      {isEditingHistory ? 'Editando' : 'Detalle'}: {selectedHistoryPractice.scheduled_date.split('T')[0]}
+                  <div className={`border-b pb-4 mb-6 md:mb-8 ${selectedHistoryPractice.event_type === 'examen' ? 'border-orange-100' : ''}`}>
+                    <h3 className={`text-xl md:text-2xl font-black uppercase italic pr-16 md:pr-0 ${selectedHistoryPractice.event_type === 'examen' ? 'text-orange-600' : 'text-indigo-950'}`}>
+                      {isEditingHistory ? 'Editando' : 'Detalle'}: {selectedHistoryPractice.title || selectedHistoryPractice.scheduled_date.split('T')[0]}
                     </h3>
+                    {selectedHistoryPractice.event_type === 'examen' && <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Tipo: Examen / Evaluación</span>}
                   </div>
                   {isEditingHistory ? (
                     <div className="space-y-3 md:space-y-4">
                       {allPlayers.filter(p => p.category_id === selectedCategoryId && p.status === 'active').map(p => (
-                        <div key={p.id} className="flex flex-col sm:flex-row justify-between items-center p-3 md:p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-2">
-                          <span className="font-black text-slate-700 uppercase text-[10px] md:text-xs">{p.name}</span>
-                          <div className="flex gap-2 w-full sm:w-auto">
+                        <div key={p.id} className="flex flex-col sm:flex-row justify-between items-center p-3 md:p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
+                          <span className="font-black text-slate-700 uppercase text-[10px] md:text-xs min-w-[120px]">{p.name}</span>
+                          <div className="flex flex-1 gap-2 w-full sm:w-auto items-center">
                             <button onClick={() => setAttendanceRecord(v => ({...v, [p.id]: 'present'}))} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[8px] md:text-[9px] font-black transition-all ${attendanceRecord[p.id] === 'present' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-400'}`}>PRESENTE</button>
                             <button onClick={() => setAttendanceRecord(v => ({...v, [p.id]: 'absent'}))} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[8px] md:text-[9px] font-black transition-all ${attendanceRecord[p.id] === 'absent' ? 'bg-red-500 text-white' : 'bg-white text-slate-400'}`}>AUSENTE</button>
+                            
+                            {selectedHistoryPractice.event_type === 'examen' && (
+                              <input 
+                                type="number"
+                                placeholder="Nota"
+                                value={gradesRecord[p.id] || ''}
+                                onChange={(e) => setGradesRecord(v => ({...v, [p.id]: e.target.value}))}
+                                disabled={attendanceRecord[p.id] === 'absent'}
+                                className="w-16 p-2 rounded-lg border-2 border-slate-200 text-center font-black text-xs outline-none focus:border-orange-400 disabled:opacity-30"
+                              />
+                            )}
                           </div>
                         </div>
                       ))}
                       <div className="flex flex-col sm:flex-row gap-3 pt-4">
                         <button disabled={isSaving} onClick={saveAttendance} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-orange-500 transition-all shadow-md">
-                          {isSaving ? 'GUARDANDO...' : 'FINALIZAR EDICIÓN'}
+                          {isSaving ? 'GUARDANDO...' : 'FINALIZAR CAMBIOS'}
                         </button>
                         <button onClick={() => setIsEditingHistory(false)} className="w-full sm:w-auto px-8 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black text-xs">CANCELAR</button>
                       </div>
@@ -490,9 +514,18 @@ export default function DashboardProfe() {
                   ) : (
                     <div className="grid gap-2">
                       {historyAttendance.map((record, idx) => (
-                        <div key={idx} className="flex justify-between p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl">
-                          <span className="font-black text-slate-700 uppercase text-[10px] md:text-xs">{record.users?.name || 'Jugador'}</span>
-                          <span className={`text-[8px] md:text-[9px] font-black px-2 py-1 rounded-lg ${record.status === 'present' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>{record.status === 'present' ? 'PRESENTE' : 'AUSENTE'}</span>
+                        <div key={idx} className="flex justify-between items-center p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl">
+                          <span className="font-black text-slate-700 uppercase text-[10px] md:text-xs">{record.users?.name || 'Alumno'}</span>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[8px] md:text-[9px] font-black px-2 py-1 rounded-lg ${record.status === 'present' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                              {record.status === 'present' ? 'PRESENTE' : 'AUSENTE'}
+                            </span>
+                            {selectedHistoryPractice.event_type === 'examen' && (
+                               <div className="bg-white border px-3 py-1 rounded-lg font-black text-orange-600 text-xs">
+                                  {gradesRecord[record.player_id] ? `Nota: ${gradesRecord[record.player_id]}` : '-'}
+                               </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -501,22 +534,46 @@ export default function DashboardProfe() {
               </div>
             ) : (
               <div className="grid gap-3 pb-10">
-                {monthPractices.filter(p => historySummary[p.id]).reverse().map(p => (
-                  <div key={p.id} onClick={async () => {
-                    const { data: attData } = await supabase.from('attendance').select(`status, player_id, users!player_id (name), professor_id`).eq('practice_id', p.id);
-                    setHistoryAttendance(attData || []); 
-                    setSelectedHistoryPractice(p);
-                  }} className="bg-white p-5 md:p-6 rounded-[24px] md:rounded-[32px] border border-slate-100 flex justify-between items-center hover:border-indigo-400 cursor-pointer shadow-sm group active:bg-slate-50">
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="bg-slate-50 px-3 py-2 md:p-4 rounded-xl md:rounded-2xl text-indigo-900 font-black text-[9px] md:text-xs uppercase italic">{p.scheduled_date.split('T')[0]}</div>
-                      <div className="flex gap-3 md:gap-4">
-                        <div className="flex items-center gap-1 text-emerald-500"><UserCheck size={14}/> <span className="text-[10px] md:text-xs font-black">{historySummary[p.id]?.present || 0}</span></div>
-                        <div className="flex items-center gap-1 text-red-500"><UserX size={14}/> <span className="text-[10px] md:text-xs font-black">{historySummary[p.id]?.absent || 0}</span></div>
+                {monthPractices.filter(p => historySummary[p.id]).reverse().map(p => {
+                  const isExam = p.event_type === 'examen';
+                  return (
+                    <div key={p.id} onClick={async () => {
+                      const { data: attData } = await supabase.from('attendance').select(`status, player_id, users!player_id (name), professor_id`).eq('practice_id', p.id);
+                      
+                      // Cargar notas si es examen para la vista detalle
+                      if (p.event_type === 'examen') {
+                        const { data: gData } = await supabase.from('grades').select('player_id, score').eq('practice_id', p.id);
+                        const loadedGrades: Record<string, string> = {};
+                        gData?.forEach(g => { loadedGrades[g.player_id] = g.score.toString(); });
+                        setGradesRecord(loadedGrades);
+                      } else {
+                        setGradesRecord({});
+                      }
+
+                      setHistoryAttendance(attData || []); 
+                      setSelectedHistoryPractice(p);
+                    }} className={`bg-white p-5 md:p-6 rounded-[24px] md:rounded-[32px] border flex justify-between items-center hover:border-indigo-400 cursor-pointer shadow-sm group active:bg-slate-50 transition-all ${isExam ? 'border-orange-200 bg-orange-50/10' : 'border-slate-100'}`}>
+                      <div className="flex items-center gap-3 md:gap-4">
+                        <div className={`px-3 py-2 md:p-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-xs uppercase italic ${isExam ? 'bg-orange-600 text-white' : 'bg-slate-50 text-indigo-900'}`}>
+                          {isExam ? 'EXAMEN' : p.scheduled_date.split('T')[0]}
+                        </div>
+                        <div className="flex flex-col">
+                          {isExam && <span className="text-[8px] font-black text-orange-500 uppercase leading-none mb-1">{p.scheduled_date.split('T')[0]}</span>}
+                          <div className="flex gap-3 md:gap-4">
+                            <div className="flex items-center gap-1 text-emerald-500"><UserCheck size={14}/> <span className="text-[10px] md:text-xs font-black">{historySummary[p.id]?.present || 0}</span></div>
+                            <div className="flex items-center gap-1 text-red-500"><UserX size={14}/> <span className="text-[10px] md:text-xs font-black">{historySummary[p.id]?.absent || 0}</span></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[10px] font-black uppercase hidden md:inline ${isExam ? 'text-orange-500' : 'text-slate-300'}`}>
+                          {isExam ? p.title : 'Ver Clase'}
+                        </span>
+                        <ChevronRight size={18} className="text-slate-200 group-hover:text-indigo-400 transition-colors" />
                       </div>
                     </div>
-                    <ChevronRight size={18} className="text-slate-200 group-hover:text-indigo-400 transition-colors" />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
