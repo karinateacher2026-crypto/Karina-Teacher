@@ -352,8 +352,6 @@ export default function AdminPlanner() {
               >
                 <option value="">{!selectedSedeId || !selectedDeporteId ? 'Selecciona sede e idioma primero...' : 'Elegir curso...'}</option>
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                <option value="">{!selectedSedeId || !selectedDeporteId ? 'Selecciona sede e idioma primero...' : 'Elegir curso...'}</option>
-                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name} ({cat.gender})</option>)}
               </select>
             </div>
 

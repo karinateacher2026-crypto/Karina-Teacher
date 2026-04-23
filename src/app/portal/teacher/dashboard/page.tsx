@@ -38,8 +38,9 @@ export default function DashboardProfe() {
   const [isSaving, setIsSaving] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [attendanceRecord, setAttendanceRecord] = useState<Record<string, string>>({});
-  const [gradesRecord, setGradesRecord] = useState<Record<string, string>>({}); // Nuevo estado para notas
-  const [isAttendanceDone, setIsAttendanceDone] = useState(false);
+  const [gradesRecord, setGradesRecord] = useState<Record<string, string>>({}); 
+  const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null); // Nuevo: rastrea qué evento se está pasando lista
+  const [donePractices, setDonePractices] = useState<string[]>([]); // Nuevo: array de IDs con asistencia completada
   const [selectedHistoryPractice, setSelectedHistoryPractice] = useState<any | null>(null);
   const [historyAttendance, setHistoryAttendance] = useState<any[]>([]);
   const [isEditingHistory, setIsEditingHistory] = useState(false);
@@ -122,6 +123,7 @@ export default function DashboardProfe() {
         
         const stats: any = {};
         const pStats: any = {};
+        const doneIds: string[] = [];
 
         attData?.forEach(row => {
           const practiceInfo = allPractices.find(p => p.id === row.practice_id);
@@ -136,19 +138,13 @@ export default function DashboardProfe() {
             status: row.status,
             category_id: catId 
           });
+
+          if (!doneIds.includes(row.practice_id)) doneIds.push(row.practice_id);
         });
 
         setHistorySummary(stats);
         setPlayerStats(pStats);
-
-        const todayStr = getTodayArgentina();
-        const todayPractice = allPractices.find(p => p.category_id === currentId && p.scheduled_date.startsWith(todayStr));
-        if (todayPractice) {
-          const hasAtt = attData?.some(a => a.practice_id === todayPractice.id);
-          setIsAttendanceDone(!!hasAtt);
-        } else {
-          setIsAttendanceDone(false);
-        }
+        setDonePractices(doneIds);
       }
     } catch (err) {
       console.error("Error cargando datos:", err);
@@ -169,11 +165,10 @@ export default function DashboardProfe() {
         .forEach(p => { defaultAttendance[p.id] = 'present'; });
       setAttendanceRecord(defaultAttendance);
     }
-  }, [allPlayers, selectedCategoryId, isEditingHistory]);
+  }, [allPlayers, selectedCategoryId, isEditingHistory, selectedPracticeId]);
 
   const saveAttendance = async () => {
-    const todayStr = getTodayArgentina();
-    const practiceToSave = isEditingHistory ? selectedHistoryPractice : monthPractices.find(p => p.scheduled_date.startsWith(todayStr));
+    const practiceToSave = isEditingHistory ? selectedHistoryPractice : monthPractices.find(p => p.id === selectedPracticeId);
     
     if (!practiceToSave || isSaving) return;
     setIsSaving(true);
@@ -188,7 +183,6 @@ export default function DashboardProfe() {
       const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'practice_id,player_id' });
       if (error) throw error;
       
-      // Guardar notas si es examen
       if (practiceToSave.event_type === 'examen') {
         const gradeRows = Object.entries(gradesRecord).map(([playerId, score]) => ({
           practice_id: practiceToSave.id,
@@ -207,7 +201,7 @@ export default function DashboardProfe() {
         setIsEditingHistory(false);
         setSelectedHistoryPractice(null);
       } else {
-        setIsAttendanceDone(true);
+        setSelectedPracticeId(null);
       }
       setActiveTab('historial');
     } catch (err: any) {
@@ -227,30 +221,31 @@ export default function DashboardProfe() {
     for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="h-20 md:h-24 border border-slate-50" />);
     for (let d = 1; d <= daysInMonth; d++) {
       const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const practice = monthPractices.find(p => p.scheduled_date.startsWith(dayStr));
+      const dayPractices = monthPractices.filter(p => p.scheduled_date.startsWith(dayStr));
       const isPast = dayStr < todayStr;
       const isToday = dayStr === todayStr;
       
-      const isExam = practice?.event_type === 'examen';
-
       days.push(
-        <div key={d} className="h-20 md:h-24 border border-slate-100 p-1 md:p-2 relative flex flex-col justify-between">
+        <div key={d} className="h-20 md:h-24 border border-slate-100 p-1 md:p-2 relative flex flex-col justify-start gap-1 overflow-y-auto">
           <span className={`text-[10px] font-bold ${isToday ? 'text-indigo-600' : 'text-slate-300'}`}>{d}</span>
-          {practice && (
-            <div className="flex flex-col gap-0.5 overflow-hidden">
-              <div onClick={() => { if (isToday) setActiveTab('asistencia'); else if (isPast) setActiveTab('historial'); }}
-                className={`p-0.5 md:p-1 rounded-[4px] text-[6px] md:text-[7px] font-black text-center transition-all ${
-                  isToday ? (isExam ? 'bg-orange-600' : 'bg-indigo-600') + ' text-white cursor-pointer shadow-md' :
-                  isPast ? 'bg-slate-100 text-slate-500 cursor-pointer hover:bg-indigo-100' :
-                  'bg-orange-50 text-orange-400'
-                }`}>
-                {isToday ? (isExam ? 'EXAMEN' : 'HOY') : isPast ? 'pasados' : 'proximo'}
+          {dayPractices.map((practice, idx) => {
+            const isExam = practice?.event_type === 'examen';
+            return (
+              <div key={idx} className="flex flex-col gap-0.5 overflow-hidden shrink-0">
+                <div onClick={() => { if (isToday) { setSelectedPracticeId(practice.id); setActiveTab('asistencia'); } else if (isPast) setActiveTab('historial'); }}
+                  className={`p-0.5 md:p-1 rounded-[4px] text-[6px] md:text-[7px] font-black text-center transition-all ${
+                    isToday ? (isExam ? 'bg-orange-600' : 'bg-indigo-600') + ' text-white cursor-pointer shadow-md' :
+                    isPast ? (isExam ? 'bg-orange-100 text-orange-600 border border-orange-200 cursor-pointer hover:bg-orange-200' : 'bg-slate-100 text-slate-500 cursor-pointer hover:bg-indigo-100') :
+                    'bg-orange-50 text-orange-400'
+                  }`}>
+                  {isToday ? (isExam ? 'EXAMEN' : 'HOY') : isPast ? 'pasados' : 'proximo'}
+                </div>
+                <div className={`text-[5px] md:text-[9px] font-black text-center uppercase truncate leading-none mt-0.5 md:mt-1 ${isExam ? 'text-orange-500' : 'text-slate-500'}`}>
+                  {practice.title || practice.observations?.replace('Turno: ', '').trim() || 'Sin Hora'}
+                </div>
               </div>
-              <div className={`text-[5px] md:text-[9px] font-black text-center uppercase truncate leading-none mt-0.5 md:mt-1 ${isExam ? 'text-orange-500' : 'text-slate-500'}`}>
-                {practice.title || practice.observations?.replace('Turno: ', '').trim() || 'Sin Hora'}
-              </div>
-            </div>
-          )}
+            );
+          })}
         </div>
       );
     }
@@ -309,7 +304,7 @@ export default function DashboardProfe() {
             return (
               <button
                 key={item.id}
-                onClick={() => { setActiveTab(item.id); setSelectedHistoryPractice(null); setIsEditingHistory(false); setIsMenuOpen(false); }}
+                onClick={() => { setActiveTab(item.id); setSelectedHistoryPractice(null); setIsEditingHistory(false); setIsMenuOpen(false); if(item.id !== 'asistencia') setSelectedPracticeId(null); }}
                 className={`flex w-full items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${
                   isActive
                     ? 'bg-indigo-600 text-white shadow-md transform translate-x-1'
@@ -375,20 +370,38 @@ export default function DashboardProfe() {
 
         {activeTab === 'asistencia' && (
           <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
-            {!monthPractices.find(p => p.scheduled_date.startsWith(getTodayArgentina())) ? (
-              <div className="bg-white p-10 md:p-20 rounded-[32px] md:rounded-[40px] text-center border-2 border-dashed border-slate-200">
-                <Lock className="mx-auto mb-6 text-slate-200" size={48}/>
-                <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No hay clases para hoy</p>
+            {!selectedPracticeId ? (
+              <div className="space-y-4">
+                <p className="font-black text-slate-400 uppercase text-xs tracking-widest text-center">Selecciona un evento de hoy para pasar lista:</p>
+                {monthPractices.filter(p => p.scheduled_date.startsWith(getTodayArgentina())).map((p, _, arr) => {
+                  const multipleEvents = arr.length > 1;
+                  const displayTitle = multipleEvents 
+                    ? (p.event_type === 'examen' ? 'Examen' : 'Clase') 
+                    : (p.title || 'Clase sin título');
+                    
+                  return (
+                    <button key={p.id} onClick={() => setSelectedPracticeId(p.id)} className={`w-full p-6 rounded-3xl border-2 flex justify-between items-center transition-all ${donePractices.includes(p.id) ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-indigo-100 hover:border-indigo-500'}`}>
+                      <div className="text-left">
+                        <span className="block font-black text-indigo-950 text-sm uppercase">{displayTitle}</span>
+                      </div>
+                      {donePractices.includes(p.id) ? <CheckCircle2 className="text-emerald-500"/> : <ChevronRight className="text-indigo-500"/>}
+                    </button>
+                  );
+                })}
               </div>
-            ) : isAttendanceDone ? (
+            ) : donePractices.includes(selectedPracticeId) ? (
               <div className="bg-emerald-50 p-10 md:p-20 rounded-[32px] md:rounded-[40px] text-center border-2 border-emerald-100">
                 <CheckCircle2 className="mx-auto mb-6 text-emerald-500" size={48}/>
-                <p className="font-black text-emerald-900 uppercase text-xs tracking-widest">Lista enviada correctamente</p>
+                <p className="font-black text-emerald-900 uppercase text-xs tracking-widest mb-4">Lista enviada correctamente para este evento</p>
+                <button onClick={() => setSelectedPracticeId(null)} className="text-indigo-600 font-black text-[10px] uppercase underline">Volver a eventos</button>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="bg-indigo-600 p-6 md:p-8 rounded-[32px] md:rounded-[40px] text-white flex flex-col md:flex-row justify-between items-center gap-4 shadow-2xl">
-                  <h3 className="text-xl md:text-2xl font-black uppercase italic text-center md:text-left">Pase de lista hoy</h3>
+                  <div className="text-center md:text-left">
+                    <button onClick={() => setSelectedPracticeId(null)} className="text-indigo-200 text-[10px] font-black uppercase mb-2 flex items-center gap-1"><ChevronLeft size={12}/> VOLVER</button>
+                    <h3 className="text-xl md:text-2xl font-black uppercase italic">Pase de lista: {monthPractices.find(p => p.id === selectedPracticeId)?.title}</h3>
+                  </div>
                   <button disabled={isSaving} onClick={saveAttendance} className="w-full md:w-auto bg-white text-indigo-600 px-8 py-4 rounded-2xl font-black text-xs hover:bg-orange-500 hover:text-white transition-all">
                     {isSaving ? 'GUARDANDO...' : 'FINALIZAR'}
                   </button>
@@ -448,136 +461,137 @@ export default function DashboardProfe() {
           </div>
         )}
 
-        {activeTab === 'historial' && (
-          <div className="max-w-4xl mx-auto space-y-4">
-            {selectedHistoryPractice ? (
-              <div className="pb-10">
-                <button onClick={() => { setSelectedHistoryPractice(null); setIsEditingHistory(false); }} className="text-indigo-600 font-black text-[10px] uppercase mb-4 flex items-center gap-2"><ChevronLeft size={14}/> VOLVER</button>
-                <div className="bg-white p-6 md:p-8 rounded-[32px] md:rounded-[40px] border border-slate-100 shadow-xl relative">
-                  {!isEditingHistory && (
-                    <button 
-                      onClick={async () => {
-                        const editData: Record<string, string> = {};
-                        const editGrades: Record<string, string> = {};
-                        
-                        historyAttendance.forEach(att => { editData[att.player_id] = att.status; });
-                        
-                        if (selectedHistoryPractice.event_type === 'examen') {
-                          const { data: gData } = await supabase.from('grades').select('player_id, score').eq('practice_id', selectedHistoryPractice.id);
-                          gData?.forEach(g => { editGrades[g.player_id] = g.score.toString(); });
-                        }
+{activeTab === 'historial' && (
+  <div className="max-w-4xl mx-auto space-y-4">
+    {selectedHistoryPractice ? (
+      <div className="pb-10">
+        <button onClick={() => { setSelectedHistoryPractice(null); setIsEditingHistory(false); }} className="text-indigo-600 font-black text-[10px] uppercase mb-4 flex items-center gap-2"><ChevronLeft size={14}/> VOLVER</button>
+        <div className="bg-white p-6 md:p-8 rounded-[32px] md:rounded-[40px] border border-slate-100 shadow-xl relative">
+          {!isEditingHistory && (
+            <button 
+              onClick={async () => {
+                const editData: Record<string, string> = {};
+                const editGrades: Record<string, string> = {};
+                
+                historyAttendance.forEach(att => { editData[att.player_id] = att.status; });
+                
+                if (selectedHistoryPractice.event_type === 'examen') {
+                  const { data: gData } = await supabase.from('grades').select('player_id, score').eq('practice_id', selectedHistoryPractice.id);
+                  gData?.forEach(g => { editGrades[g.player_id] = g.score.toString(); });
+                }
 
-                        setAttendanceRecord(editData);
-                        setGradesRecord(editGrades);
-                        setIsEditingHistory(true);
-                      }}
-                      className="absolute top-6 right-6 md:top-8 md:right-8 flex items-center gap-2 bg-orange-50 text-orange-600 px-3 py-2 rounded-xl font-black text-[9px] md:text-[10px] hover:bg-orange-600 hover:text-white transition-all border border-orange-100 shadow-sm"
-                    >
-                      <Edit2 size={12}/> EDITAR / CALIFICAR
-                    </button>
-                  )}
-                  <div className={`border-b pb-4 mb-6 md:mb-8 ${selectedHistoryPractice.event_type === 'examen' ? 'border-orange-100' : ''}`}>
-                    <h3 className={`text-xl md:text-2xl font-black uppercase italic pr-16 md:pr-0 ${selectedHistoryPractice.event_type === 'examen' ? 'text-orange-600' : 'text-indigo-950'}`}>
-                      {isEditingHistory ? 'Editando' : 'Detalle'}: {selectedHistoryPractice.title || selectedHistoryPractice.scheduled_date.split('T')[0]}
-                    </h3>
-                    {selectedHistoryPractice.event_type === 'examen' && <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Tipo: Examen / Evaluación</span>}
+                setAttendanceRecord(editData);
+                setGradesRecord(editGrades);
+                setIsEditingHistory(true);
+              }}
+              className="absolute top-6 right-6 md:top-8 md:right-8 flex items-center gap-2 bg-orange-50 text-orange-600 px-3 py-2 rounded-xl font-black text-[9px] md:text-[10px] hover:bg-orange-600 hover:text-white transition-all border border-orange-100 shadow-sm"
+            >
+              <Edit2 size={12}/> EDITAR / CALIFICAR
+            </button>
+          )}
+          <div className={`border-b pb-4 mb-6 md:mb-8 ${selectedHistoryPractice.event_type === 'examen' ? 'border-orange-100' : ''}`}>
+            <h3 className={`text-xl md:text-2xl font-black uppercase italic pr-16 md:pr-0 ${selectedHistoryPractice.event_type === 'examen' ? 'text-orange-600' : 'text-indigo-950'}`}>
+              {isEditingHistory ? 'Editando' : 'Detalle'}: {selectedHistoryPractice.title || selectedHistoryPractice.scheduled_date.split('T')[0]}
+            </h3>
+            {selectedHistoryPractice.event_type === 'examen' && <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Tipo: Examen / Evaluación</span>}
+          </div>
+          {isEditingHistory ? (
+            <div className="space-y-3 md:space-y-4">
+              {allPlayers.filter(p => p.category_id === selectedCategoryId && p.status === 'active').map(p => (
+                <div key={p.id} className="flex flex-col sm:flex-row justify-between items-center p-3 md:p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
+                  <span className="font-black text-slate-700 uppercase text-[10px] md:text-xs min-w-[120px]">{p.name}</span>
+                  <div className="flex flex-1 gap-2 w-full sm:w-auto items-center">
+                    <button onClick={() => setAttendanceRecord(v => ({...v, [p.id]: 'present'}))} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[8px] md:text-[9px] font-black transition-all ${attendanceRecord[p.id] === 'present' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-400'}`}>PRESENTE</button>
+                    <button onClick={() => setAttendanceRecord(v => ({...v, [p.id]: 'absent'}))} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[8px] md:text-[9px] font-black transition-all ${attendanceRecord[p.id] === 'absent' ? 'bg-red-500 text-white' : 'bg-white text-slate-400'}`}>AUSENTE</button>
+                    
+                    {selectedHistoryPractice.event_type === 'examen' && (
+                      <input 
+                        type="number"
+                        placeholder="Nota"
+                        value={gradesRecord[p.id] || ''}
+                        onChange={(e) => setGradesRecord(v => ({...v, [p.id]: e.target.value}))}
+                        disabled={attendanceRecord[p.id] === 'absent'}
+                        className="w-16 p-2 rounded-lg border-2 border-slate-200 text-center font-black text-xs outline-none focus:border-orange-400 disabled:opacity-30"
+                      />
+                    )}
                   </div>
-                  {isEditingHistory ? (
-                    <div className="space-y-3 md:space-y-4">
-                      {allPlayers.filter(p => p.category_id === selectedCategoryId && p.status === 'active').map(p => (
-                        <div key={p.id} className="flex flex-col sm:flex-row justify-between items-center p-3 md:p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
-                          <span className="font-black text-slate-700 uppercase text-[10px] md:text-xs min-w-[120px]">{p.name}</span>
-                          <div className="flex flex-1 gap-2 w-full sm:w-auto items-center">
-                            <button onClick={() => setAttendanceRecord(v => ({...v, [p.id]: 'present'}))} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[8px] md:text-[9px] font-black transition-all ${attendanceRecord[p.id] === 'present' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-400'}`}>PRESENTE</button>
-                            <button onClick={() => setAttendanceRecord(v => ({...v, [p.id]: 'absent'}))} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[8px] md:text-[9px] font-black transition-all ${attendanceRecord[p.id] === 'absent' ? 'bg-red-500 text-white' : 'bg-white text-slate-400'}`}>AUSENTE</button>
-                            
-                            {selectedHistoryPractice.event_type === 'examen' && (
-                              <input 
-                                type="number"
-                                placeholder="Nota"
-                                value={gradesRecord[p.id] || ''}
-                                onChange={(e) => setGradesRecord(v => ({...v, [p.id]: e.target.value}))}
-                                disabled={attendanceRecord[p.id] === 'absent'}
-                                className="w-16 p-2 rounded-lg border-2 border-slate-200 text-center font-black text-xs outline-none focus:border-orange-400 disabled:opacity-30"
-                              />
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                        <button disabled={isSaving} onClick={saveAttendance} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-orange-500 transition-all shadow-md">
-                          {isSaving ? 'GUARDANDO...' : 'FINALIZAR CAMBIOS'}
-                        </button>
-                        <button onClick={() => setIsEditingHistory(false)} className="w-full sm:w-auto px-8 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black text-xs">CANCELAR</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid gap-2">
-                      {historyAttendance.map((record, idx) => (
-                        <div key={idx} className="flex justify-between items-center p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl">
-                          <span className="font-black text-slate-700 uppercase text-[10px] md:text-xs">{record.users?.name || 'Alumno'}</span>
-                          <div className="flex items-center gap-3">
-                            <span className={`text-[8px] md:text-[9px] font-black px-2 py-1 rounded-lg ${record.status === 'present' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                              {record.status === 'present' ? 'PRESENTE' : 'AUSENTE'}
-                            </span>
-                            {selectedHistoryPractice.event_type === 'examen' && (
-                               <div className="bg-white border px-3 py-1 rounded-lg font-black text-orange-600 text-xs">
-                                  {gradesRecord[record.player_id] ? `Nota: ${gradesRecord[record.player_id]}` : '-'}
-                               </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                </div>
+              ))}
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                <button disabled={isSaving} onClick={saveAttendance} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-orange-500 transition-all shadow-md">
+                  {isSaving ? 'GUARDANDO...' : 'FINALIZAR CAMBIOS'}
+                </button>
+                <button onClick={() => setIsEditingHistory(false)} className="w-full sm:w-auto px-8 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black text-xs">CANCELAR</button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {historyAttendance.map((record, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl">
+                  <span className="font-black text-slate-700 uppercase text-[10px] md:text-xs">{record.users?.name || 'Alumno'}</span>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-[8px] md:text-[9px] font-black px-2 py-1 rounded-lg ${record.status === 'present' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                      {record.status === 'present' ? 'PRESENTE' : 'AUSENTE'}
+                    </span>
+                    {selectedHistoryPractice.event_type === 'examen' && (
+                       <div className="bg-white border px-3 py-1 rounded-lg font-black text-orange-600 text-xs">
+                          {gradesRecord[record.player_id] ? `Nota: ${gradesRecord[record.player_id]}` : '-'}
+                       </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    ) : (
+      <div className="grid gap-3 pb-10">
+        {monthPractices.filter(p => historySummary[p.id]).reverse().map(p => {
+          const isExam = p.event_type === 'examen';
+          return (
+            <div key={p.id} onClick={async () => {
+              const { data: attData } = await supabase.from('attendance').select(`status, player_id, users!player_id (name), professor_id`).eq('practice_id', p.id);
+              
+              if (p.event_type === 'examen') {
+                const { data: gData } = await supabase.from('grades').select('player_id, score').eq('practice_id', p.id);
+                const loadedGrades: Record<string, string> = {};
+                gData?.forEach(g => { loadedGrades[g.player_id] = g.score.toString(); });
+                setGradesRecord(loadedGrades);
+              } else {
+                setGradesRecord({});
+              }
+
+              setHistoryAttendance(attData || []); 
+              setSelectedHistoryPractice(p);
+            }} className={`bg-white p-5 md:p-6 rounded-[24px] md:rounded-[32px] border flex justify-between items-center hover:border-indigo-400 cursor-pointer shadow-sm group active:bg-slate-50 transition-all ${isExam ? 'border-orange-200 bg-orange-50/10' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className={`px-3 py-2 md:p-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-xs uppercase italic min-w-[75px] text-center ${isExam ? 'bg-orange-600 text-white' : 'bg-slate-50 text-indigo-900'}`}>
+                  {isExam ? 'EXAMEN' : 'CLASE'}
+                </div>
+                <div className="flex flex-col">
+                  <span className={`text-[8px] font-black uppercase leading-none mb-1 ${isExam ? 'text-orange-500' : 'text-slate-400'}`}>
+                    {p.scheduled_date.split('T')[0]}
+                  </span>
+                  <div className="flex gap-3 md:gap-4">
+                    <div className="flex items-center gap-1 text-emerald-500"><UserCheck size={14}/> <span className="text-[10px] md:text-xs font-black">{historySummary[p.id]?.present || 0}</span></div>
+                    <div className="flex items-center gap-1 text-red-500"><UserX size={14}/> <span className="text-[10px] md:text-xs font-black">{historySummary[p.id]?.absent || 0}</span></div>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="grid gap-3 pb-10">
-                {monthPractices.filter(p => historySummary[p.id]).reverse().map(p => {
-                  const isExam = p.event_type === 'examen';
-                  return (
-                    <div key={p.id} onClick={async () => {
-                      const { data: attData } = await supabase.from('attendance').select(`status, player_id, users!player_id (name), professor_id`).eq('practice_id', p.id);
-                      
-                      // Cargar notas si es examen para la vista detalle
-                      if (p.event_type === 'examen') {
-                        const { data: gData } = await supabase.from('grades').select('player_id, score').eq('practice_id', p.id);
-                        const loadedGrades: Record<string, string> = {};
-                        gData?.forEach(g => { loadedGrades[g.player_id] = g.score.toString(); });
-                        setGradesRecord(loadedGrades);
-                      } else {
-                        setGradesRecord({});
-                      }
-
-                      setHistoryAttendance(attData || []); 
-                      setSelectedHistoryPractice(p);
-                    }} className={`bg-white p-5 md:p-6 rounded-[24px] md:rounded-[32px] border flex justify-between items-center hover:border-indigo-400 cursor-pointer shadow-sm group active:bg-slate-50 transition-all ${isExam ? 'border-orange-200 bg-orange-50/10' : 'border-slate-100'}`}>
-                      <div className="flex items-center gap-3 md:gap-4">
-                        <div className={`px-3 py-2 md:p-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-xs uppercase italic ${isExam ? 'bg-orange-600 text-white' : 'bg-slate-50 text-indigo-900'}`}>
-                          {isExam ? 'EXAMEN' : p.scheduled_date.split('T')[0]}
-                        </div>
-                        <div className="flex flex-col">
-                          {isExam && <span className="text-[8px] font-black text-orange-500 uppercase leading-none mb-1">{p.scheduled_date.split('T')[0]}</span>}
-                          <div className="flex gap-3 md:gap-4">
-                            <div className="flex items-center gap-1 text-emerald-500"><UserCheck size={14}/> <span className="text-[10px] md:text-xs font-black">{historySummary[p.id]?.present || 0}</span></div>
-                            <div className="flex items-center gap-1 text-red-500"><UserX size={14}/> <span className="text-[10px] md:text-xs font-black">{historySummary[p.id]?.absent || 0}</span></div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={`text-[10px] font-black uppercase hidden md:inline ${isExam ? 'text-orange-500' : 'text-slate-300'}`}>
-                          {isExam ? p.title : 'Ver Clase'}
-                        </span>
-                        <ChevronRight size={18} className="text-slate-200 group-hover:text-indigo-400 transition-colors" />
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center gap-3">
+                <span className={`text-[10px] font-black uppercase hidden md:inline ${isExam ? 'text-orange-500' : 'text-slate-300'}`}>
+                  {isExam ? p.title : 'Ver Clase'}
+                </span>
+                <ChevronRight size={18} className="text-slate-200 group-hover:text-indigo-400 transition-colors" />
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+)}
       </main>
     </div>
   );
