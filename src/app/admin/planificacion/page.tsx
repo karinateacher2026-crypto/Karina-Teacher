@@ -42,6 +42,7 @@ export default function AdminPlanner() {
   const [selectedHistoryPractice, setSelectedHistoryPractice] = useState<any | null>(null);
   const [historyAttendance, setHistoryAttendance] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [grades, setGrades] = useState([]); // Para guardar los scores de la tabla grades
 
   useEffect(() => {
     if (notification) {
@@ -102,27 +103,51 @@ export default function AdminPlanner() {
   }, [selectedCatId]);
 
   const openHistory = async (p: any) => {
-    setIsLoadingHistory(true);
-    setSelectedHistoryPractice(p);
-    try {
-      const { data: attData } = await supabase
+  setIsLoadingHistory(true);
+  setSelectedHistoryPractice(p);
+  try {
+    // 1. Traemos asistencia y notas de la tabla 'grades' en paralelo
+    const [attRes, gradesRes] = await Promise.all([
+      supabase
         .from('attendance')
-        .select(`status, users!player_id (name), professor_id`)
-        .eq('practice_id', p.id);
+        .select(`status, player_id, users!player_id (name), professor_id`)
+        .eq('practice_id', p.id),
+      supabase
+        .from('grades')
+        .select(`score, player_id`)
+        .eq('practice_id', p.id)
+    ]);
 
-      let pName = "No registrado";
-      if (attData && attData.length > 0 && attData[0].professor_id) {
-        const { data: prof } = await supabase.from('users').select('name').eq('id', attData[0].professor_id).single();
-        if (prof) pName = prof.name;
-      }
-      const finalData = attData?.map(item => ({ ...item, profeNombre: pName }));
-      setHistoryAttendance(finalData || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoadingHistory(false);
+    if (attRes.error) throw attRes.error;
+
+    // 2. Buscamos el nombre del profesor si hay registros
+    let pName = "No registrado";
+    if (attRes.data && attRes.data.length > 0 && attRes.data[0].professor_id) {
+      const { data: prof } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', attRes.data[0].professor_id)
+        .single();
+      if (prof) pName = prof.name;
     }
-  };
+
+    // 3. Cruzamos los datos: a cada registro de asistencia le pegamos su nota de la tabla grades
+    const finalData = attRes.data?.map(att => {
+      const gradeRecord = gradesRes.data?.find(g => g.player_id === att.player_id);
+      return { 
+        ...att, 
+        profeNombre: pName,
+        score: gradeRecord ? gradeRecord.score : '-' // Si no hay nota, ponemos un guión
+      };
+    });
+
+    setHistoryAttendance(finalData || []);
+  } catch (err) {
+    console.error("Error en openHistory:", err);
+  } finally {
+    setIsLoadingHistory(false);
+  }
+};
 
   const savePractices = async () => {
     if (!selectedCatId || dates.length === 0) return;
@@ -262,13 +287,24 @@ export default function AdminPlanner() {
                   </div>
                   <div className="grid gap-2">
                     {historyAttendance.map((record, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <span className="font-black text-slate-700 uppercase text-xs">{record.users?.name}</span>
-                        <span className={`text-[9px] font-black px-4 py-2 rounded-xl ${record.status === 'present' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                    <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border">
+                      <span className="font-black text-slate-700 uppercase text-xs">{record.users?.name}</span>
+                      
+                      <div className="flex items-center gap-3">
+                        {/* Badge de Asistencia */}
+                        <span className={`text-[9px] font-black px-3 py-1.5 rounded-lg ${record.status === 'present' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
                           {record.status === 'present' ? 'PRESENTE' : 'AUSENTE'}
                         </span>
+
+                        {/* Badge de Nota (Solo si es examen y está presente) */}
+                        {selectedHistoryPractice.event_type === 'examen' && record.status === 'present' && (
+                          <div className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg shadow-sm">
+                            <span className="text-[10px] font-black">NOTA: {record.score}</span>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    </div>
+                  ))}
                   </div>
                 </div>
               ) : (
