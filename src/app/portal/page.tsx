@@ -215,7 +215,7 @@ export default function PortalLogin() {
             
             {!hasMultipleRoles && (
               <div className={`mt-2 inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-4 ${isAdmin ? 'bg-indigo-100 text-indigo-700' : (isPlayer ? 'bg-green-100 text-green-700' : (isTeacher ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'))}`}>
-                  Rol: {isAdmin ? 'Administrador' : (isPlayer ? 'Jugador' : (isTeacher ? 'Profesor' : 'Sin Asignar'))}
+                  Rol: {isAdmin ? 'Administrador' : (isPlayer ? 'Estudiante' : (isTeacher ? 'Profesor' : 'Sin Asignar'))}
               </div>
             )}
 

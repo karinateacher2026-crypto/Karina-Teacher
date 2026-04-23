@@ -45,7 +45,7 @@ export default function AdminLayout({
 
   const menuItems = [
     { name: 'Panel de Control', href: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Socios', href: '/admin/players', icon: Users },
+    { name: 'Estudiantes', href: '/admin/players', icon: Users },
     { name: 'Planificación', href: '/admin/planificacion', icon: CalendarDays }, // <--- NUEVO
     { name: 'Profes', href: '/admin/adminprofes', icon: Users }, // <-- AGREGÁ ESTA LÍNEA
     { name: 'Categorias', href: '/admin/categories', icon: Users },
@@ -80,7 +80,7 @@ export default function AdminLayout({
   className="h-12 w-12 bg-[#1e1b4b] rounded-full flex items-center justify-center border-2 overflow-hidden shadow-md min-w-[3rem]"
   style={{ borderColor: CLIENT_CONFIG.colors.primary }}
 >            <img 
-                src="/logo_club.png" 
+                src="/logo.jpg" 
                 alt="Club" 
                 className="h-full w-full object-cover scale-110" 
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}

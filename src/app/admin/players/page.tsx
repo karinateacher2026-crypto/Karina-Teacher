@@ -230,7 +230,7 @@ const fetchAttendance = async () => {
      setPlayerToToggle(null);
      
      // 4. Disparamos tu cartelito flotante de éxito
-     setToastMessage(`Socio cambiado a ${newStatus === 'active' ? 'ACTIVO' : 'INACTIVO'}`);
+     setToastMessage(`Estudiante cambiado a ${newStatus === 'active' ? 'ACTIVO' : 'INACTIVO'}`);
      setShowToast(true);
      setTimeout(() => setShowToast(false), 3000);
 
@@ -434,7 +434,7 @@ const fetchAttendance = async () => {
 
   const { data: existingCuil } = await supabase.from('users').select('id').eq('cuil', formData.cuil).neq('id', editingPlayer?.id || '').maybeSingle()
   if (existingCuil) {
-    alert('Error: Ya existe un socio registrado con este CUIL.')
+    alert('Error: Ya existe un estudiante registrado con este CUIL.')
     setIsSubmitting(false); return
   }
 
@@ -529,7 +529,7 @@ const fetchAttendance = async () => {
   fetchPlayers();
  } catch (error: any) { 
    console.error(error);
-   alert('Error al guardar socio: ' + error.message); 
+   alert('Error al guardar estudiante: ' + error.message); 
  } finally { 
    setIsSubmitting(false); 
  }
@@ -629,7 +629,7 @@ const exportToExcel = () => {
  return (
   <div className="space-y-8 text-left">
    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div><h1 className="text-3xl font-bold tracking-tight text-gray-900">Socios</h1><p className="mt-2 text-gray-500">Gestión de Estudiantes del Instituto.</p></div>
+    <div><h1 className="text-3xl font-bold tracking-tight text-gray-900">Estudiantes</h1><p className="mt-2 text-gray-500">Gestión de Estudiantes del Instituto.</p></div>
     <div className="flex gap-2">
      <button 
       onClick={exportToExcel} 
@@ -749,7 +749,7 @@ const exportToExcel = () => {
      <table className="min-w-full divide-y divide-gray-200">
       <thead className="bg-gray-50">
        <tr>
-        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6">Socio</th>
+        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-6">Estudiante</th>
         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Familia</th>
         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nacimiento</th>        
         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Saldo</th>
@@ -848,7 +848,7 @@ const exportToExcel = () => {
     <button 
       onClick={() => openModal(player)} 
       className="text-gray-500 hover:text-indigo-600 p-1 bg-gray-50 hover:bg-indigo-50 rounded-md transition" 
-      title="Editar Socio"
+      title="Editar Estudiante"
     >
       <Edit2 size={18} />
     </button>
@@ -1082,13 +1082,13 @@ const exportToExcel = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-left">
       <div className="w-full max-w-md rounded-xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 text-left">
         <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
-         <h3 className="text-lg font-bold text-gray-900">{playerToToggle.status === 'active' ? 'Dar de Baja' : 'Reactivar Socio'}</h3>
+         <h3 className="text-lg font-bold text-gray-900">{playerToToggle.status === 'active' ? 'Dar de Baja' : 'Reactivar Estudiante'}</h3>
          <button onClick={() => setIsStatusModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
         </div>
         <div className="p-6 text-center">
          <p className="text-gray-600 mb-6 text-left">Cambiar estado de <strong>{playerToToggle.name}</strong> a:</p>
          <div className={`w-full py-4 rounded-xl font-black uppercase tracking-wider shadow-sm border-2 mb-6 ${playerToToggle.status === 'active' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>{playerToToggle.status === 'active' ? 'INACTIVO (Baja)' : 'ACTIVO (Alta)'}</div>
-         <p className="mt-4 text-[11px] text-gray-400 text-center uppercase font-bold tracking-tight text-left">* Los socios inactivos no recibirán cargos automáticos de cuotas.</p>
+         <p className="mt-4 text-[11px] text-gray-400 text-center uppercase font-bold tracking-tight text-left">* Los estudiantes inactivos no recibirán cargos automáticos de cuotas.</p>
         </div>
         <div className="p-5 bg-gray-50 border-t flex justify-end gap-3"><button onClick={() => setIsStatusModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-md transition">Cancelar</button><button onClick={executeStatusChange} disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm transition">{isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : 'Confirmar'}</button></div>
       </div>
@@ -1099,7 +1099,7 @@ const exportToExcel = () => {
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto text-left">
     <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[95vh] text-left">
       <div className="p-4 border-b flex justify-between items-center bg-gray-50 flex-shrink-0 text-left">
-        <h2 className="text-lg font-black text-gray-900 uppercase italic tracking-tight text-left">Editar Socio</h2>
+        <h2 className="text-lg font-black text-gray-900 uppercase italic tracking-tight text-left">Editar Estudiante</h2>
         <button onClick={() => { setIsModalOpen(false); setFormError(null); }} className="text-gray-400 hover:text-gray-600 transition text-left"><X size={20}/></button>
       </div>
       

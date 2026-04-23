@@ -2,12 +2,12 @@
 
 export const CLIENT_CONFIG = {
   name: "Butterflies English Classes",
-  shortName: "Ingles",
+  shortName: "Butterflies English Classes",
   logoUrl: "/logo.jpg",
   alias_club:"probando",
   cbu_club:"0000000",
   colors: {
-    primary: "#6A5D91", // Azul Cedetalvo
+    primary: "#1A2B4C", // Azul Cedetalvo
     secondary: "#A28CC4",
     accent: "#facc15",
   },

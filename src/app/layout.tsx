@@ -16,10 +16,10 @@ const geistMono = Geist_Mono({
 
 // METADATOS PERSONALIZADOS PARA CEDETALVO
 export const metadata: Metadata = {
-  title: `${CLIENT_CONFIG.name} | Voley Mar del Plata`, 
-  description: `Sitio oficial de ${CLIENT_CONFIG.name}. Formación deportiva y pasión por el voley en Mar del Plata.`,
+  title: `${CLIENT_CONFIG.name}`, 
+  description: `Sitio oficial de ${CLIENT_CONFIG.name}.`,
   manifest: "/manifest.json", 
-  keywords: ["Voley Mar del Plata", "Cedetalvo", "Voleibol", "Deportes Mar del Plata"],
+  keywords: [],
   icons: {
     icon: [
       { url: CLIENT_CONFIG.logoUrl, sizes: "any" }, // Usamos tu logo dinámico
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: CLIENT_CONFIG.name,
-    description: "Club referente de voley en la ciudad.",
+    description: "",
     url: "https://www.cedetalvo.com.ar", // Cambiá esto cuando tengas el dominio
     siteName: CLIENT_CONFIG.name,
     images: [{ url: CLIENT_CONFIG.logoUrl, width: 512, height: 512 }],

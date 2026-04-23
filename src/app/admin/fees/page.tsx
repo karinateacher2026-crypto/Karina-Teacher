@@ -28,12 +28,13 @@ export default function AdminFees() {
   const [massiveSedeIds, setMassiveSedeIds] = useState<any[]>([]) 
   const [massiveCats, setMassiveCats] = useState<number[]>([])
   const [availableCatsForMassive, setAvailableCatsForMassive] = useState<any[]>([])
+  const [massiveAntiquity, setMassiveAntiquity] = useState<'all' | 'old' | 'new'>('all')
 
   const [showBonusModal, setShowBonusModal] = useState(false)
   const [bonusPercent, setBonusPercent] = useState('10')
   const [bonusType, setBonusType] = useState<'multi' | 'family'>('multi')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [showDeleteModal, setShowDeleteModal] = useState<{ show: boolean, batchName: string | null }>({ show: false, batchName: null })
+  const [showDeleteModal, setShowDeleteModal] = useState<{ show: boolean, batchName: string | null, rawProofUrl: string | null, notes: string | null }>({ show: false, batchName: null, rawProofUrl: null, notes: null })
 
   // Construcción dinámica del nombre del lote
   const getDynamicConcept = () => {
@@ -72,11 +73,15 @@ export default function AdminFees() {
 
       let query = supabase
         .from('user_categories')
-        .select('user_id, categories!inner(sede_id)')
+        .select('user_id, categories!inner(sede_id), users!inner(estudianteAntiguo)') // <-- Cambiado
         .eq('deporte_id', sportId)
       
       if (massiveSedeIds.length > 0) query = query.in('categories.sede_id', massiveSedeIds)
       if (massiveCats.length > 0) query = query.in('category_id', massiveCats)
+      
+      // 🚀 NUEVO: APLICAR FILTRO DE ANTIGÜEDAD AL CHEQUEO
+      if (massiveAntiquity === 'old') query = query.eq('users.estudianteAntiguo', true)
+      if (massiveAntiquity === 'new') query = query.eq('users.estudianteAntiguo', false)
 
       const { data: candidates } = await query
       if (!candidates || candidates.length === 0) {
@@ -102,7 +107,7 @@ export default function AdminFees() {
       }
     }
     checkAvailability()
-  }, [selectedSport, massiveSedeIds, massiveCats, feeBatches, baseConcept, dbSports])
+  }, [selectedSport, massiveSedeIds, massiveCats, massiveAntiquity, feeBatches, baseConcept, dbSports])
 
   // --- TAB MANUAL ---
   const [manualUser, setManualUser] = useState<any>(null)
@@ -163,10 +168,34 @@ export default function AdminFees() {
   }
 
   const fetchFeeBatches = async () => {
-    const { data } = await supabase.from('payments').select('proof_url, date, amount').eq('method', 'cuota').order('date', { ascending: false }).limit(200)
+    // 1. Ahora le pedimos explícitamente la columna 'notes' a la base de datos
+    const { data } = await supabase
+      .from('payments')
+      .select('proof_url, date, amount, notes') 
+      .eq('method', 'cuota')
+      .order('date', { ascending: false })
+      .limit(200)
+
     if (data) {
       const map = new Map()
-      data.forEach(item => { if (!map.has(item.proof_url)) map.set(item.proof_url, { name: item.proof_url, date: item.date, amount: Math.abs(item.amount) }) })
+      data.forEach(item => { 
+        // 2. Creamos una llave única que junte el nombre + la nota (para que no se pisen)
+        const noteStr = item.notes || 'general';
+        const uniqueKey = `${item.proof_url}-${noteStr}`;
+
+        if (!map.has(uniqueKey)) {
+          // 3. Le agregamos la etiqueta visual al nombre para la profe
+          const displayName = item.notes ? `${item.proof_url} [${item.notes}]` : item.proof_url;
+          
+          map.set(uniqueKey, { 
+            name: displayName, 
+            rawProofUrl: item.proof_url, 
+            notes: item.notes, 
+            date: item.date, 
+            amount: Math.abs(item.amount) 
+          }) 
+        }
+      })
       setFeeBatches(Array.from(map.values()))
     }
   }
@@ -202,7 +231,7 @@ export default function AdminFees() {
       
       let query = supabase
         .from('user_categories')
-        .select('user_id, users!inner(id, status, role), categories!inner(id, name, sede_id)')
+        .select('user_id, users!inner(id, status, role, estudianteAntiguo), categories!inner(id, name, sede_id)') // <-- Cambiado
         .eq('users.status', 'active')
         .contains('users.role', ['player'])
         .eq('deporte_id', sportId);
@@ -215,9 +244,16 @@ export default function AdminFees() {
         query = query.in('category_id', massiveCats);
       }
 
+      // 🚀 NUEVO: APLICAR FILTRO DE ANTIGÜEDAD A LA GENERACIÓN
+      if (massiveAntiquity === 'old') {
+        query = query.eq('users.estudianteAntiguo', true);
+      } else if (massiveAntiquity === 'new') {
+        query = query.eq('users.estudianteAntiguo', false);
+      }
+
       const { data: candidates, error: candError } = await query
       if (candError) throw candError
-      if (!candidates?.length) throw new Error(`No hay socios que coincidan con la selección.`)
+      if (!candidates?.length) throw new Error(`No hay estudiantes que coincidan con la selección.`)
 
       // --- 🚀 ESTA ES LA LÓGICA DE EXCLUSIÓN REFORZADA ---
       // Buscamos en la tabla de pagos TODOS los socios que ya tengan la cuota de este deporte este mes
@@ -236,17 +272,22 @@ export default function AdminFees() {
       // ---------------------------------------------------
 
       if (finalTargets.length === 0) {
-        throw new Error(`Todos los socios que cumplen estos filtros ya tienen su cuota de ${selectedSport} generada para este mes.`)
+        throw new Error(`Todos los estudiantes que cumplen estos filtros ya tienen su cuota de ${selectedSport} generada para este mes.`)
       }
 
       const amount = parseFloat(massiveAmount)
+      
+      // Armamos la etiqueta secreta para la profe
+      const batchNote = massiveAntiquity === 'old' ? 'Antiguos' : massiveAntiquity === 'new' ? 'Nuevos' : null;
+
       const records = finalTargets.map((item: any) => ({
         user_id: item.users.id,
         amount: -amount,
         method: 'cuota',
         date: new Date().toISOString(),
         status: 'completed',
-        proof_url: fullConcept,
+        proof_url: fullConcept, // El alumno ve esto (Limpio)
+        notes: batchNote,       // La profe usa esto (Etiqueta oculta)
         category_snapshot: item.categories?.name || 'S/D',
         sport_snapshot: selectedSport
       }))
@@ -254,7 +295,7 @@ export default function AdminFees() {
       const { error: insertError } = await supabase.from('payments').insert(records)
       if (insertError) throw insertError
 
-      showToast(`¡Éxito! Cuota generada para ${finalTargets.length} socios.`, 'success')
+      showToast(`¡Éxito! Cuota generada para ${finalTargets.length} estudiantes.`, 'success')
       setMassiveAmount(''); setMassiveCats([]); setMassiveSedeIds([]); fetchFeeBatches()
     } catch (e: any) { 
       showToast(e.message, 'error') 
@@ -292,31 +333,33 @@ export default function AdminFees() {
         records.push({ user_id: p.id, amount: credit, method: 'adjustment', date: new Date().toISOString(), status: 'completed', notes: note, sport_snapshot: allSports || 'MultiIdioma', category_snapshot: allCats || 'Varias' })
         updates.push(supabase.rpc('increment_balance', { x: credit, row_id: p.id }))
       }
-      if (!records.length) throw new Error('No hay socios para bonificar o ya fueron procesados.')
+      if (!records.length) throw new Error('No hay estudiantes para bonificar o ya fueron procesados.')
       await supabase.from('payments').insert(records); await Promise.all(updates)
       showToast('Beneficio aplicado correctamente.', 'success')
     } catch (e: any) { showToast(e.message, 'error') } finally { setLoading(false) }
   }
 
   const executeDeleteBatch = async () => {
-    const batchName = showDeleteModal.batchName; 
+    const { batchName, rawProofUrl, notes } = showDeleteModal; 
     if (!batchName) return;
     
+    // PLAN B: Si es un lote viejo y no tiene rawProofUrl, usamos el batchName normal
+    const proofUrlToUse = rawProofUrl || batchName;
+
     setLoading(true); 
-    // NO cerramos el modal acá, así el usuario ve la ruedita girando mientras procesa
     
     try {
-      // 1. Extraemos el mes del nombre del lote (Ej: de "Cuota Marzo 2026..." saca "Marzo")
       const monthMatch = batchName.match(/Cuota (\w+)/);
       const targetMonth = monthMatch ? monthMatch[1] : monthName;
 
       // 2. Buscamos a qué usuarios se les había cobrado en este lote específico
-      const { data: fees } = await supabase
-        .from('payments')
-        .select('user_id')
-        .eq('proof_url', batchName);
+      let queryUsers = supabase.from('payments').select('user_id').eq('proof_url', proofUrlToUse);
+      if (notes) queryUsers = queryUsers.eq('notes', notes);
+      else queryUsers = queryUsers.is('notes', null);
+      
+      const { data: fees } = await queryUsers;
 
-      // 3. Borramos las bonificaciones asociadas a esos usuarios en ese mes de un solo golpe
+      // 3. Borramos las bonificaciones asociadas
       if (fees && fees.length > 0) {
         const userIds = fees.map(f => f.user_id);
         await supabase
@@ -327,20 +370,20 @@ export default function AdminFees() {
           .ilike('notes', `%Bonificación ${targetMonth}%`);
       }
 
-      // 4. Finalmente, borramos el lote de cuotas principal
-      const { error } = await supabase
-        .from('payments')
-        .delete()
-        .eq('proof_url', batchName);
+      // 4. Borramos el lote principal exacto
+      let delQuery = supabase.from('payments').delete().eq('proof_url', proofUrlToUse);
+      if (notes) delQuery = delQuery.eq('notes', notes);
+      else delQuery = delQuery.is('notes', null);
 
+      const { error } = await delQuery;
       if (error) throw error;
       
-      showToast(`Lote "${batchName}" eliminado.`, 'success'); 
+      showToast(`Lote eliminado correctamente.`, 'success'); 
       fetchFeeBatches();
-      setShowDeleteModal({ show: false, batchName: null }); // Recién ahora cerramos el modal
+      setShowDeleteModal({ show: false, batchName: null, rawProofUrl: null, notes: null }); 
     } catch (e: any) { 
       showToast('Error: ' + e.message, 'error'); 
-      setShowDeleteModal({ show: false, batchName: null });
+      setShowDeleteModal({ show: false, batchName: null, rawProofUrl: null, notes: null });
     } finally { 
       setLoading(false); 
     }
@@ -362,7 +405,7 @@ export default function AdminFees() {
         const { data } = await supabase.from('users').select('id, name, user_categories!inner(category_id, deportes(name), categories(name))').eq('status', 'active').in('user_categories.category_id', filterCats)
         targets = data || []
       }
-      if (!targets.length) throw new Error('No hay socios seleccionados.')
+      if (!targets.length) throw new Error('No hay estudiantes seleccionados.')
       
       const records = targets.map(t => {
         const rels = (t.user_categories as any[]) || []
@@ -448,6 +491,34 @@ export default function AdminFees() {
 
             <div className="mb-8 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-4">
               <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2"><MapPin size={12}/> Segmentación de Cuota (Opcional)</p>
+              {/* 🚀 MACRO-FILTRO DE ANTIGÜEDAD */}
+              <div className="bg-white border border-gray-200 rounded-lg p-2">
+                <p className="text-[9px] font-bold text-gray-400 uppercase mb-2 ml-1">Macro Filtro: Tipo de Estudiante</p>
+                <div className="flex gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => setMassiveAntiquity('all')}
+                    className={`flex-1 py-2 text-[10px] font-black uppercase rounded-md transition-all ${massiveAntiquity === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    Todos
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setMassiveAntiquity('old')}
+                    className={`flex-1 py-2 text-[10px] font-black uppercase rounded-md transition-all ${massiveAntiquity === 'old' ? 'bg-amber-500 text-white shadow-sm' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    Solo Antiguos
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setMassiveAntiquity('new')}
+                    className={`flex-1 py-2 text-[10px] font-black uppercase rounded-md transition-all ${massiveAntiquity === 'new' ? 'bg-emerald-500 text-white shadow-sm' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    Solo Nuevos
+                  </button>
+                </div>
+              </div>
+              {/* FIN MACRO-FILTRO */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="max-h-32 overflow-y-auto bg-white border border-gray-200 rounded-lg p-2 space-y-1">
                   <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Filtrar por Sede:</p>
@@ -560,7 +631,7 @@ export default function AdminFees() {
                           <div className="h-10 w-10 rounded-lg flex items-center justify-center font-bold text-xs border border-blue-100 uppercase bg-blue-50 text-blue-600">{batch.name.split('-')[1]?.trim().charAt(0) || 'C'}</div>
                           <div><p className="font-bold text-gray-900 text-sm">{batch.name}</p><p className="text-xs text-gray-500">Fecha: {format(parseISO(batch.date), 'dd/MM/yyyy')} • <span className="text-red-600 font-bold">${batch.amount.toLocaleString()}</span></p></div>
                         </div>
-                        <button onClick={() => setShowDeleteModal({ show: true, batchName: batch.name })} className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg text-xs font-bold transition shadow-sm"><Trash2 size={14} /> Borrar</button>
+                        <button onClick={() => setShowDeleteModal({ show: true, batchName: batch.name, rawProofUrl: batch.rawProofUrl || batch.name, notes: batch.notes || null })} className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg text-xs font-bold transition shadow-sm"><Trash2 size={14} /> Borrar</button>
                       </div>
                     ))}
                   </div>
@@ -703,7 +774,7 @@ export default function AdminFees() {
             <div className="h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 mx-auto"><Trash2 size={32} className="text-gray-600" /></div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">¿Eliminar Lote?</h3>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setShowDeleteModal({ show: false, batchName: null })} className="py-2.5 px-4 bg-gray-100 text-gray-700 font-bold rounded-lg">Cancelar</button>
+              <button onClick={() => setShowDeleteModal({ show: false, batchName: null, rawProofUrl: null, notes: null })} className="py-2.5 px-4 bg-gray-100 text-gray-700 font-bold rounded-lg">Cancelar</button>
               <button onClick={executeDeleteBatch} className="py-2.5 px-4 bg-red-600 text-white font-bold rounded-lg flex justify-center items-center">{loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Eliminar'}</button>
             </div>
           </div>
