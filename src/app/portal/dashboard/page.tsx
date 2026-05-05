@@ -103,37 +103,48 @@ export default function PortalDashboard() {
   const [scheduledPractices, setScheduledPractices] = useState<any[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
 
-  // --- LÓGICA CORREGIDA Y APLANADA ---
-  // --- LÓGICA DE ASISTENCIA CORREGIDA ---
+// --- LÓGICA DE ASISTENCIA Y NOTAS UNIFICADA ---
   useEffect(() => {
     const fetchAttendanceAndPractices = async () => {
       if (!user?.id) return;
       try {
         setCalendarLoading(true);
 
-        // 1. Traemos las prácticas (esto está bien)
+        // 1. Traemos prácticas (agregamos event_type para el color naranja)
         const { data: practicesData, error: pracError } = await supabase
           .from('practices')
-          .select('id, scheduled_date, observations, categories(name, deportes(name))');
+          .select('id, scheduled_date, observations, event_type, categories(name, deportes(name))');
 
         if (!pracError && practicesData) {
           setScheduledPractices(practicesData);
         }
 
-        // 2. Traemos la asistencia FILTRANDO POR EL USUARIO ACTUAL
-        const { data: attData, error: attError } = await supabase
-          .from('attendance')
-          .select('practice_id, status')
-          .eq('player_id', user.id); // <--- CAMBIAMOS 'user_id' POR 'player_id'
+        // 2. Traemos Asistencia y Notas del alumno en paralelo
+        const [attRes, gradesRes] = await Promise.all([
+          supabase
+            .from('attendance')
+            .select('practice_id, status')
+            .eq('player_id', user.id),
+          supabase
+            .from('grades')
+            .select('practice_id, score')
+            .eq('player_id', user.id)
+        ]);
 
-        if (!attError && attData) {
-          setAttendanceData(attData);
-        } else if (attError) {
-          console.error("Error fetching attendance:", attError);
+        if (attRes.data) {
+          // Combinamos la asistencia con la nota si existe para ese practice_id
+          const combinedData = attRes.data.map(att => {
+            const gradeEntry = gradesRes.data?.find(g => g.practice_id === att.practice_id);
+            return {
+              ...att,
+              score: gradeEntry ? gradeEntry.score : null
+            };
+          });
+          setAttendanceData(combinedData);
         }
 
       } catch (err: any) {
-        console.error('Error al cargar calendario:', err.message, err);
+        console.error('Error al cargar calendario:', err.message);
       } finally {
         setCalendarLoading(false);
       }
@@ -152,24 +163,21 @@ export default function PortalDashboard() {
     const days = [];
     const todayStr = getTodayArgentina();
 
-    // 1. Identificamos qué deportes hace este socio en particular
     const availableSports = Array.from(new Set(userSportsInfo.map(info => info.sport).filter(Boolean)));
 
     for (let i = 0; i < firstDay; i++) {
-        days.push(<div key={`empty-${i}`} className="h-20 md:h-24 border border-slate-50" />);
+        days.push(<div key={`empty-${i}`} className="h-24 md:h-32 border border-slate-50" />);
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
-      // 2. Filtramos cruzando Fecha + Deporte Seleccionado
+      // Filtrado Multievento
       const practicesForDay = scheduledPractices.filter(p => {
           if (!p.scheduled_date) return false;
           if (p.scheduled_date.split('T')[0] !== dayStr) return false;
-          
           const practiceSport = p.categories?.deportes?.name;
           if (calendarSportFilter !== 'Todos' && practiceSport !== calendarSportFilter) return false;
-          
           return true;
       });
       
@@ -177,51 +185,59 @@ export default function PortalDashboard() {
       const isToday = dayStr === todayStr;
 
       days.push(
-        <div key={d} className="h-20 md:h-24 border border-slate-100 p-1 md:p-2 relative flex flex-col justify-between bg-white">
-          <span className={`text-[10px] font-bold ${isToday ? 'text-indigo-600' : 'text-slate-300'}`}>{d}</span>
+        <div key={d} className="h-24 md:h-32 border border-slate-100 p-1 relative flex flex-col bg-white overflow-hidden">
+          <span className={`text-[10px] font-black mb-1 ${isToday ? 'text-indigo-600' : 'text-slate-300'}`}>{d}</span>
 
-          <div className="flex flex-col gap-0.5 overflow-hidden">
+          <div className="flex flex-col gap-1 overflow-y-auto no-scrollbar">
             {practicesForDay.map((practice, idx) => {
               const record = attendanceData.find(r => r.practice_id === practice.id);
               const hasData = record && (record.status === 'present' || record.status === 'absent');
+              const isExamen = practice.event_type === 'examen';
 
               let statusLabel = '';
               let statusClass = '';
 
               if (hasData) {
                 if (record.status === 'present') {
-                    statusLabel = 'Presente';
-                    statusClass = 'bg-emerald-100 text-emerald-700';
+                    statusLabel = 'pasados';
+                    statusClass = isExamen ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700';
                 } else {
-                    statusLabel = 'Ausente';
+                    statusLabel = 'AUSENTE';
                     statusClass = 'bg-red-100 text-red-700';
                 }
               } else {
                 if (isToday) {
                     statusLabel = 'HOY';
-                    statusClass = 'bg-indigo-600 text-white shadow-md';
+                    statusClass = 'bg-indigo-600 text-white shadow-sm';
                 } else if (isPast) {
-                    statusLabel = 'Sin datos';
+                    statusLabel = 'pasados';
                     statusClass = 'bg-slate-100 text-slate-500';
                 } else {
-                    statusLabel = 'Próximo';
-                    statusClass = 'bg-orange-50 text-orange-400';
+                    statusLabel = 'proximo';
+                    statusClass = isExamen ? 'bg-orange-500 text-white' : 'bg-indigo-50 text-indigo-400';
                 }
               }
 
-              const practiceName = practice.observations?.replace('Turno: ', '').trim() || 
-                                   practice.categories?.deportes?.name || 
-                                   practice.categories?.name || 
-                                   'Práctica';
+              const horario = practice.observations?.replace('Turno: ', '').trim() || '';
 
               return (
-                <div key={practice.id || idx} className="flex flex-col mb-1">
-                  <div className={`p-0.5 md:p-1 rounded-[4px] text-[6px] md:text-[7px] font-black text-center transition-all ${statusClass}`}>
+                <div key={practice.id || idx} className={`flex flex-col rounded-lg border p-1 transition-all ${isExamen ? 'border-orange-200 bg-orange-50/50' : 'border-transparent'}`}>
+                  {/* Badge de Asistencia */}
+                  <div className={`py-1 rounded-md text-[7px] font-black text-center uppercase tracking-tighter ${statusClass}`}>
                     {statusLabel}
                   </div>
-                  {!hasData && (
-                    <div className="text-[5px] md:text-[9px] font-black text-slate-500 text-center uppercase truncate leading-none mt-0.5 md:mt-1" title={practiceName}>
-                      {practiceName}
+
+                  {/* Horario extraído de observations */}
+                  {horario && (
+                    <div className={`text-[8px] font-black text-center mt-1 ${isExamen ? 'text-orange-600' : 'text-slate-600'}`}>
+                      {horario}
+                    </div>
+                  )}
+
+                  {/* NOTA (Solo visible si es examen y hay nota) */}
+                  {isExamen && record?.score && record.status === 'present' && (
+                    <div className="mt-1 bg-white border border-orange-200 rounded-md py-0.5 text-center shadow-sm">
+                      <span className="text-[9px] font-black text-orange-600">NOTA: {record.score}</span>
                     </div>
                   )}
                 </div>
@@ -238,7 +254,6 @@ export default function PortalDashboard() {
           <h2 className="text-2xl md:text-3xl font-black text-[#1e1b4b] uppercase tracking-tighter">Mi Asistencia</h2>
           <p className="text-slate-500 text-sm">Calendario de clases y registro de presencias.</p>
           
-          {/* 3. ACÁ SE DIBUJAN LAS PÍLDORAS SI HACE MÁS DE 1 DEPORTE */}
           {availableSports.length > 1 && (
             <div className="mt-4 flex flex-wrap gap-2">
               <button 
@@ -274,7 +289,6 @@ export default function PortalDashboard() {
       </div>
     );
   };
-  // ------------------------------------------
 
   useEffect(() => { fetchUserData() }, [])
 
