@@ -23,7 +23,7 @@ export default function Register() {
   // ----------------------------------
 
   const [formData, setFormData] = useState({
-      email: '', password: '', firstName: '', lastName: '', cuil: '', phone: '',
+      email: '', confirmEmail: '', password: '', firstName: '', lastName: '', cuil: '', phone: '',
       birth_date: '', address: '', gender: '',
       emergency_contact_name: '', emergency_contact: '', medical_notes: ''
   })
@@ -99,6 +99,11 @@ export default function Register() {
     e.preventDefault()
     setError(null)
     
+    // --- NUEVO: VALIDACIÓN DE EMAILS ---
+    if (formData.email !== formData.confirmEmail) {
+        setError("Los correos electrónicos no coinciden. Revisalos por favor.")
+        return
+    }
     // VALIDACIÓN DE CUIL SOCIO (11 números)
     const cuilDigits = formData.cuil.replace(/\D/g, "");
     if (cuilDigits.length !== 11) {
@@ -262,12 +267,27 @@ export default function Register() {
                   <h3 className="flex items-center gap-2 font-black text-gray-900 uppercase text-sm border-b pb-2 mb-4 text-left">
                       <ShieldCheck size={18} className="text-indigo-600 text-left"/> Datos de Cuenta
                   </h3>
+                  
+                  {/* Fila de Mails */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                     <div className="text-left">
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1 text-left">Email <span className="text-red-500">*</span></label>
-                        <input type="email" required className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 outline-none font-bold text-gray-900 text-left" placeholder="tu@email.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                        <input type="email" required className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 outline-none font-bold text-gray-900 text-left" placeholder="tu@email.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value.trim().toLowerCase()})} />
                     </div>
                     <div className="text-left">
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1 text-left">Repetir Email <span className="text-red-500">*</span></label>
+                        <input type="email" required className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 outline-none font-bold text-gray-900 text-left" placeholder="Repetí tu email" value={formData.confirmEmail} onChange={(e) => setFormData({...formData, confirmEmail: e.target.value.trim().toLowerCase()})} />
+                    </div>
+                  </div>
+
+                  {/* Cartel de Advertencia */}
+                  <p className="text-[11px] text-indigo-700 font-bold mt-2 bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex items-center gap-3">
+                     <AlertCircle size={16} className="shrink-0 text-indigo-500" />
+                     Asegurate de ingresar tu correo correctamente y verificar que tengas espacio de almacenamiento libre para poder recibir el link de activación de la cuenta.
+                  </p>
+
+                  {/* Contraseña */}
+                  <div className="mt-4 text-left">
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1 text-left">Contraseña <span className="text-red-500">*</span></label>
                         <div className="relative text-left">
                             <input 
@@ -286,7 +306,6 @@ export default function Register() {
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
                         </div>
-                    </div>
                   </div>
               </div>
 

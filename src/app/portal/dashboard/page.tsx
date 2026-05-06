@@ -97,6 +97,7 @@ export default function PortalDashboard() {
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false)
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
@@ -578,7 +579,8 @@ export default function PortalDashboard() {
     } finally { setPassLoading(false) }
   }
 
-  const handlePaymentSubmit = async (e: React.FormEvent) => {
+  // 1. Esta función ataja el formulario, valida y ABRE el cartel
+  const handlePreSubmit = (e: React.FormEvent) => {
       e.preventDefault(); 
       if (!amount || !file) return; 
 
@@ -586,8 +588,14 @@ export default function PortalDashboard() {
           setMessage({ type: 'error', text: 'El comprobante debe pesar menos de 2.5MB' });
           return;
       }
+      // Si está todo OK, abrimos el modal en vez de enviar
+      setShowPaymentConfirm(true);
+  }
 
-      setUploading(true)
+  // 2. Esta función hace el envío real a Supabase (se ejecuta al decir "Sí, es correcto")
+  const handlePaymentSubmit = async () => {
+      setShowPaymentConfirm(false); // Cerramos el cartel
+      setUploading(true);
       try {
           let publicUrl = null
           if (file) {
@@ -602,8 +610,8 @@ export default function PortalDashboard() {
               .select('deportes(name), categories(name)')
               .eq('user_id', user.id)
 
-          let finalSport = 'Sin Deporte'
-          let finalCategory = 'Sin Categoría'
+          let finalSport = 'Sin Idioma'
+          let finalCategory = 'Sin Curso'
 
           if (userSportsCats && userSportsCats.length > 0) {
               const sportsList = Array.from(new Set(userSportsCats.map((uc: any) => uc.deportes?.name).filter(Boolean)))
@@ -1270,7 +1278,7 @@ export default function PortalDashboard() {
                     </div>
                 </div>
 
-                <form onSubmit={handlePaymentSubmit} className="space-y-5 md:space-y-6 text-left">
+                <form onSubmit={handlePreSubmit} className="space-y-5 md:space-y-6 text-left">
                     <div className="text-left">
                         <label className="block text-[10px] font-bold text-gray-600 uppercase mb-2">Monto Transferido ($)</label>
                         <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 md:p-4 text-xl md:text-2xl font-black border-2 border-gray-200 rounded-xl outline-none focus:border-orange-500 text-gray-900 placeholder-gray-400" placeholder="0.00" required/>
@@ -1305,6 +1313,60 @@ export default function PortalDashboard() {
         ) : (
             <div className="bg-white p-8 md:p-10 rounded-2xl shadow-xl text-center border-t-4 border-green-500"><CheckCircle size={50} className="text-green-500 mx-auto mb-4"/><h2 className="text-xl md:text-2xl font-black text-gray-900 uppercase">¡Enviado!</h2><p className="text-gray-500 text-sm mb-6">Tu pago está en revisión.</p><button onClick={() => setUploadSuccess(false)} className="text-indigo-600 font-bold hover:underline text-sm">Nuevo pago</button></div>
         )}
+    </div>
+)}
+{/* MODAL DE CONFIRMACIÓN DE MONTO (ESTÉTICA MEJORADA) */}
+{showPaymentConfirm && (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm text-left">
+        <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
+            
+            {/* Ícono flotante */}
+            <div className="pt-8 pb-4 flex justify-center">
+                <div className="h-20 w-20 bg-orange-50 rounded-full flex items-center justify-center relative">
+                    <div className="absolute inset-0 bg-orange-100 rounded-full animate-ping opacity-40"></div>
+                    <AlertTriangle size={36} className="text-orange-500 relative z-10" />
+                </div>
+            </div>
+
+            {/* Contenido */}
+            <div className="px-6 text-center space-y-3">
+                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">
+                    Revisá el Monto
+                </h3>
+                <p className="text-gray-500 font-medium text-sm">
+                    Estás por informar un pago por:
+                </p>
+                
+                {/* Monto destacado LIMPIO */}
+                <div className="py-4">
+                    <span className="text-5xl md:text-6xl font-black text-indigo-950 tracking-tighter">
+                        ${Number(amount).toLocaleString('es-AR')}
+                    </span>
+                </div>
+                
+                <p className="text-orange-600/80 text-[11px] font-bold uppercase tracking-wider px-2 leading-relaxed mt-2">
+                    ¿Coincide exactamente con el comprobante adjunto?
+                </p>
+            </div>
+
+            {/* Botones */}
+            <div className="p-6 mt-2 flex gap-3">
+                <button 
+                    type="button"
+                    onClick={() => setShowPaymentConfirm(false)} 
+                    className="flex-1 py-3.5 bg-white text-gray-500 border border-gray-200 rounded-xl font-black uppercase text-[10px] hover:bg-gray-50 hover:text-gray-800 transition-all active:scale-95 tracking-widest"
+                >
+                    Corregir
+                </button>
+                <button 
+                    type="button"
+                    onClick={handlePaymentSubmit}
+                    className="flex-1 py-3.5 bg-green-500 text-white rounded-xl font-black uppercase text-[10px] hover:bg-green-600 transition-all active:scale-95 shadow-lg shadow-green-200 tracking-widest flex items-center justify-center gap-2"
+                >
+                    <Check size={16} strokeWidth={3} /> Sí, Enviar
+                </button>
+            </div>
+        </div>
     </div>
 )}
         {/* SECCIÓN TÉRMINOS Y CONDICIONES */}

@@ -31,8 +31,8 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
   // --- INSERCIÓN 1: TIPO DE TRANSACCIÓN Y CATEGORÍAS ---
   const [modalType, setModalType] = useState<'egreso' | 'ingreso'>('egreso');
   
-  const categories = ['Alquiler', 'Seguro', 'Farmacia', 'Arbitrajes', 'Planillas', 'Gráfica', 'Lavadero', "Maestranza", "Insumos Limpieza", "Sueldos", "Material didáctico y deportivo", "Otros"];
-  const incomeCategories = ['Eventos', 'Ingresos Asabal', 'Sponsorización', 'Donaciones', 'Alquiler de Cancha', 'Venta de insumos', 'Otros'];
+  const categories = ['Librería', 'Tóner', 'Suscripciones', 'Seguro', 'Muebles', 'Arreglos', 'Monotributo', 'Insumos Limpieza', 'Sueldos', 'Otros'];
+  const incomeCategories = ['Otros'];
   
   const currentCategories = modalType === 'egreso' ? categories : incomeCategories;
 

@@ -110,7 +110,7 @@ export default function AdminFees() {
   }, [selectedSport, massiveSedeIds, massiveCats, massiveAntiquity, feeBatches, baseConcept, dbSports])
 
   // --- TAB MANUAL ---
-  const [manualUser, setManualUser] = useState<any>(null)
+  const [manualUsers, setManualUsers] = useState<any[]>([])
   const [manualAmount, setManualAmount] = useState('')
   const [manualNote, setManualNote] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -397,15 +397,21 @@ export default function AdminFees() {
     setLoading(true)
     try {
       let targets: any[] = []
-      if (manualUser) {
-        const { data } = await supabase.from('users').select('id, name, user_categories(deportes(name), categories(name))').eq('id', manualUser.id).single()
-        targets = data ? [data] : []
+      
+      // NUEVO: Verificamos si hay socios seleccionados en el array
+      if (manualUsers.length > 0) {
+        // Traemos los datos de TODOS los socios seleccionados de una sola vez
+        const { data } = await supabase
+          .from('users')
+          .select('id, name, user_categories(deportes(name), categories(name))')
+          .in('id', manualUsers.map(u => u.id))
+        targets = data || []
       } else {
-        if (filterCats.length === 0) throw new Error('Seleccioná al menos una categoría.')
+        if (filterCats.length === 0) throw new Error('Seleccioná al menos un curso.')
         const { data } = await supabase.from('users').select('id, name, user_categories!inner(category_id, deportes(name), categories(name))').eq('status', 'active').in('user_categories.category_id', filterCats)
         targets = data || []
       }
-      if (!targets.length) throw new Error('No hay estudiantes seleccionados.')
+      if (!targets.length) throw new Error('No hay socios seleccionados.')
       
       const records = targets.map(t => {
         const rels = (t.user_categories as any[]) || []
@@ -427,7 +433,9 @@ export default function AdminFees() {
       await supabase.from('payments').insert(records)
       for (const t of targets) await supabase.rpc('increment_balance', { x: finalAmount, row_id: t.id })
       showToast('Ajuste aplicado.', 'success')
-      setManualUser(null); setManualAmount(''); setManualNote(''); setFilterCats([])
+      
+      // NUEVO: Limpiamos el array de usuarios en vez de null
+      setManualUsers([]); setManualAmount(''); setManualNote(''); setFilterCats([])
     } catch (e: any) { showToast(e.message, 'error') } finally { setLoading(false) }
   }
 // --- LÓGICA DE FILTRADO DE HISTORIAL ---
@@ -542,7 +550,7 @@ export default function AdminFees() {
                 </div>
 
                 <div className="max-h-32 overflow-y-auto bg-white border border-gray-200 rounded-lg p-2 space-y-1">
-                  <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Filtrar por Categorías:</p>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Filtrar por Curso:</p>
                   {displayedCats.length > 0 ? displayedCats.map(cat => (
                     <button 
                       key={`massive-cat-btn-${cat.id || cat.name}`} 
@@ -663,29 +671,56 @@ export default function AdminFees() {
               </button>
             </div>
 
-            <div className={manualUser === null && filterCats.length > 0 ? 'opacity-40 pointer-events-none' : ''}>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Opción A: Estudiante Único</label>
-              {!manualUser ? (
-                <div className="relative">
-                  <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
-                  <input type="text" className="w-full pl-10 p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-gray-900" placeholder="Buscar socio..." value={searchTerm} onChange={e => handleSearch(e.target.value)} />
-                  {searchResults.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                      {searchResults.map(u => (
-                        <button key={`manual-search-res-${u.id}`} type="button" onClick={() => { setManualUser(u); setSearchTerm(''); setSearchResults([]) }} className="w-full text-left px-4 py-2 hover:bg-indigo-50 text-sm font-bold text-gray-800 border-b last:border-0">{u.name}</button>
-                      ))}
+            <div className={manualUsers.length === 0 && filterCats.length > 0 ? 'opacity-40 pointer-events-none' : ''}>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Opción A: Estudiantes Específicos</label>
+              
+              {/* Buscador siempre visible para seguir agregando */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                <input type="text" className="w-full pl-10 p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-gray-900" placeholder="Buscar y agregar estudiantes..." value={searchTerm} onChange={e => handleSearch(e.target.value)} />
+                {searchResults.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                    {searchResults.map(u => (
+                      <button 
+                        key={`manual-search-res-${u.id}`} 
+                        type="button" 
+                        onClick={() => { 
+                          // Evitamos agregar al mismo socio dos veces
+                          if (!manualUsers.find(mu => mu.id === u.id)) {
+                            setManualUsers([...manualUsers, u]);
+                          }
+                          setSearchTerm(''); 
+                          setSearchResults([]) 
+                        }} 
+                        className="w-full text-left px-4 py-2 hover:bg-indigo-50 text-sm font-bold text-gray-800 border-b last:border-0"
+                      >
+                        {u.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Lista de socios seleccionados */}
+              {manualUsers.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {manualUsers.map(user => (
+                    <div key={`selected-${user.id}`} className="px-3 py-1.5 border border-indigo-200 rounded-lg flex items-center gap-2 bg-indigo-50">
+                      <span className="font-bold text-indigo-700 text-xs">{user.name}</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setManualUsers(manualUsers.filter(u => u.id !== user.id))} 
+                        className="text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-3 border border-indigo-200 rounded-lg flex justify-between items-center bg-indigo-50">
-                  <span className="font-bold text-indigo-700 text-xs">{manualUser.name}</span>
-                  <button onClick={() => setManualUser(null)} className="text-red-500"><X size={16} /></button>
+                  ))}
                 </div>
               )}
             </div>
 
-            <div className={`space-y-4 ${manualUser ? 'opacity-30 pointer-events-none' : ''}`}>
+            <div className={`space-y-4 ${manualUsers.length > 0 ? 'opacity-30 pointer-events-none' : ''}`}>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Opción B: Selección Grupal</label>
               <div className="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-100 pr-4">
                 {dbCategories.map(cat => (
@@ -706,7 +741,7 @@ export default function AdminFees() {
                 ))}
               </div>
               {filterCats.length > 0 && (
-                <button onClick={() => setFilterCats([])} className="text-[10px] font-bold text-indigo-600 uppercase hover:underline">Limpiar Selección</button>
+                <button type="button" onClick={() => setFilterCats([])} className="text-[10px] font-bold text-indigo-600 uppercase hover:underline">Limpiar Selección</button>
               )}
             </div>
 
@@ -722,14 +757,15 @@ export default function AdminFees() {
                     value={manualAmount} 
                     onChange={e => setManualAmount(e.target.value)} 
                     onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  />                </div>
+                  />                
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Motivo / Nota</label>
                   <input type="text" required placeholder="Ej: Indumentaria..." className="w-full p-3 border border-gray-300 rounded-lg outline-none font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500" value={manualNote} onChange={e => setManualNote(e.target.value)} />
                 </div>
               </div>
-              <button disabled={loading || (!manualUser && filterCats.length === 0)} className={`w-full py-3 text-white font-black rounded-lg transition flex justify-center items-center gap-2 shadow-sm uppercase text-sm ${adjustmentType === 'debt' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-300`}>
-                {loading ? <Loader2 className="animate-spin" /> : manualUser ? 'Aplicar al Socio' : `Aplicar a ${filterCats.length} categorías`}
+              <button disabled={loading || (manualUsers.length === 0 && filterCats.length === 0)} className={`w-full py-3 text-white font-black rounded-lg transition flex justify-center items-center gap-2 shadow-sm uppercase text-sm ${adjustmentType === 'debt' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} disabled:bg-gray-300`}>
+                {loading ? <Loader2 className="animate-spin" /> : manualUsers.length > 0 ? `Aplicar a ${manualUsers.length} socio(s)` : `Aplicar a ${filterCats.length} categorías`}
               </button>
             </form>
           </div>

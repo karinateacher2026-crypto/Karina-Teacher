@@ -710,7 +710,7 @@ const exportToExcel = () => {
             className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
           />
           <span className={`text-[11px] font-bold uppercase ${filterCategories.includes(cat.id.toString()) ? 'text-indigo-700' : 'text-gray-600'}`}>
-            {cat.name} ({cat.gender})
+            {cat.name}
           </span>
         </label>
       ))}

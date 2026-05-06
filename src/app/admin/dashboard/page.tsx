@@ -349,7 +349,7 @@ export default function AdminDashboard() {
             <select className="bg-gray-50 font-bold text-gray-600 outline-none text-xs cursor-pointer py-1.5 px-3 rounded-lg border border-gray-100 focus:border-indigo-300 text-left" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
                 <option value="all">Todos los cursos</option>
                 {filteredCategories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.gender})</option>
+                    <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
             </select>
 
