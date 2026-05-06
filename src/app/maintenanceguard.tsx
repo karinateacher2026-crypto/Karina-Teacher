@@ -3,6 +3,7 @@ import { useEffect, useState, ReactNode } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { Hammer } from 'lucide-react'
 import { usePathname } from 'next/navigation'
+import { CLIENT_CONFIG } from '@/conf/clientConfig'
 
 export default function MaintenanceGuard({ children }: { children: ReactNode }) {
   const [isMaintenance, setIsMaintenance] = useState(false)
@@ -83,7 +84,7 @@ export default function MaintenanceGuard({ children }: { children: ReactNode }) 
           </h1>
           <div className="h-1.5 w-16 bg-yellow-400 mx-auto"></div>
           <p className="text-blue-100 font-bold text-lg leading-tight">
-            El portal de socios de Cedetalvo volverá a estar en línea en unos minutos.
+            El portal de estudiantes de {CLIENT_CONFIG.name} volverá a estar en línea en unos minutos.
           </p>
           <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.2em] pt-4 opacity-70">
             Mantenimiento Activo • 2026

@@ -323,7 +323,7 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
 
         <div className="bg-white p-7 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-start">
           <div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Socios Activos</p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Estudiantes Activos</p>
             <h2 className="text-2xl font-bold text-slate-800 italic">{activeMembers}</h2>
             <p className="text-blue-500 text-xs font-bold mt-4 italic">Total en sistema</p>
           </div>

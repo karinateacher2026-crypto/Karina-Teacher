@@ -40,7 +40,7 @@ export default function ActualizarPassword() {
           <>
             <h2 className="text-3xl font-black text-indigo-950 uppercase italic mb-2">Nueva Contraseña</h2>
             <p className="text-gray-500 text-sm mb-8 font-medium text-balance">
-              Ingresá tu nueva clave de acceso para el portal de socios.
+              Ingresá tu nueva clave de acceso para el portal de Estudiantes.
             </p>
 
             <form onSubmit={handleUpdate} className="space-y-4">
