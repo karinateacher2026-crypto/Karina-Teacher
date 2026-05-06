@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 
 
 
+
 // METADATOS PERSONALIZADOS PARA CEDETALVO
 export const metadata: Metadata = {
   title: `${CLIENT_CONFIG.name}`, 
