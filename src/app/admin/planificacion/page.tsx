@@ -16,7 +16,7 @@ export default function AdminPlanner() {
   const [selectedDeporteId, setSelectedDeporteId] = useState<number | ''>('');
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCatId, setSelectedCatId] = useState<number | ''>('');
-  const [eventType, setEventType] = useState<'clase' | 'examen'>('clase'); // <--- NUEVO ESTADO TIPO EVENTO
+  const [eventType, setEventType] = useState<'clase' | 'examen' | 'revision'>('clase'); // <--- NUEVO ESTADO TIPO EVENTO
 
   // ESTADOS PARA FILTROS DE AGENDA (ABAJO)
   const [filterSedeId, setFilterSedeId] = useState<number | ''>('');
@@ -295,13 +295,6 @@ export default function AdminPlanner() {
                         <span className={`text-[9px] font-black px-3 py-1.5 rounded-lg ${record.status === 'present' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
                           {record.status === 'present' ? 'PRESENTE' : 'AUSENTE'}
                         </span>
-
-                        {/* Badge de Nota (Solo si es examen y está presente) */}
-                        {selectedHistoryPractice.event_type === 'examen' && record.status === 'present' && (
-                          <div className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg shadow-sm">
-                            <span className="text-[10px] font-black">NOTA: {record.score}</span>
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -394,13 +387,22 @@ export default function AdminPlanner() {
             {/* SECTOR TIPO DE EVENTO */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Evento</label>
-              <div className="flex gap-4">
+              <div className="flex gap-2"> {/* Bajé el gap a 2 para que entren bien los tres */}
                 <button 
                   onClick={() => setEventType('clase')}
                   className={`flex-1 py-3 rounded-2xl font-black text-[10px] uppercase border-2 transition-all flex items-center justify-center gap-2 ${eventType === 'clase' ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
                 >
                   <Users size={14}/> Clase
                 </button>
+                
+                {/* NUEVO BOTÓN REVISIÓN */}
+                <button 
+                  onClick={() => setEventType('revision')}
+                  className={`flex-1 py-3 rounded-2xl font-black text-[10px] uppercase border-2 transition-all flex items-center justify-center gap-2 ${eventType === 'revision' ? 'bg-emerald-500 border-emerald-500 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                >
+                  <Search size={14}/> Revisión
+                </button>
+
                 <button 
                   onClick={() => setEventType('examen')}
                   className={`flex-1 py-3 rounded-2xl font-black text-[10px] uppercase border-2 transition-all flex items-center justify-center gap-2 ${eventType === 'examen' ? 'bg-orange-500 border-orange-500 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
@@ -580,6 +582,13 @@ export default function AdminPlanner() {
                     <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase tracking-tighter border border-blue-100">
                       {p.categories?.deportes?.name || 'Idioma N/A'}
                     </span>
+                    {/* INDICADOR VISUAL DE REVISIÓN */}
+                    {p.event_type === 'revision' && (
+                      <span className="bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-tighter border border-emerald-200 flex items-center gap-1">
+                        <Search size={8}/> Revisión
+                      </span>
+                    )}
+
                     {/* INDICADOR VISUAL DE EXAMEN */}
                     {p.event_type === 'examen' && (
                       <span className="text-[8px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded uppercase tracking-tighter border border-orange-200 flex items-center gap-1">

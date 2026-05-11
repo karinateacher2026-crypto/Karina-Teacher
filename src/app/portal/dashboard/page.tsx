@@ -12,6 +12,7 @@ import {
 import { format, parseISO, differenceInYears } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CLIENT_CONFIG } from '@/conf/clientConfig';
+import { Tag, Search } from 'lucide-react'
 
 export default function PortalDashboard() {
   const router = useRouter()
@@ -28,22 +29,43 @@ export default function PortalDashboard() {
   
   const [userSportsInfo, setUserSportsInfo] = useState<any[]>([]);
 
-  useEffect(() => {
-    const fetchRoles = async () => {
-      if (!user?.id) return;
-      
-      const { data } = await supabase
-        .from('users') 
-        .select('role')
-        .eq('id', user.id)
-        .single();
+useEffect(() => {
+  const fetchRoles = async () => {
+    if (!user?.id) return;
+    
+    const { data, error } = await supabase
+      .from('users') 
+      .select('role')
+      .eq('id', user.id)
+      .single();
 
-      if (data?.role) {
-        setRealRoles(Array.isArray(data.role) ? data.role : [data.role]);
-      }
-    };
-    fetchRoles();
-  }, [user?.id]);
+    if (!error && data) {
+      setRealRoles(Array.isArray(data.role) ? data.role : [data.role]);
+    }
+  };
+  fetchRoles();
+}, [user?.id]); // Solo depende del ID inicial
+
+// Nuevo bloque para obtener la categoría desde la tabla intermedia
+useEffect(() => {
+  const fetchUserCategory = async () => {
+    if (!user?.id) return;
+
+    const { data, error } = await supabase
+      .from('user_categories')
+      .select('category_id')
+      .eq('user_id', user.id)
+      .maybeSingle(); // Usamos maybeSingle por si el alumno aún no tiene categoría
+
+    if (!error && data) {
+      setUser((prev: any) => ({ 
+        ...prev, 
+        category_id: data.category_id 
+      }));
+    }
+  };
+  fetchUserCategory();
+}, [user?.id]);
 
   const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category : 'Sin Categoría';
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -104,192 +126,214 @@ export default function PortalDashboard() {
   const [scheduledPractices, setScheduledPractices] = useState<any[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
 
-// --- LÓGICA DE ASISTENCIA Y NOTAS UNIFICADA ---
-  useEffect(() => {
-    const fetchAttendanceAndPractices = async () => {
-      if (!user?.id) return;
-      try {
-        setCalendarLoading(true);
-
-        // 1. Traemos prácticas (agregamos event_type para el color naranja)
-        const { data: practicesData, error: pracError } = await supabase
-          .from('practices')
-          .select('id, scheduled_date, observations, event_type, categories(name, deportes(name))');
-
-        if (!pracError && practicesData) {
-          setScheduledPractices(practicesData);
-        }
-
-        // 2. Traemos Asistencia y Notas del alumno en paralelo
-        const [attRes, gradesRes] = await Promise.all([
-          supabase
-            .from('attendance')
-            .select('practice_id, status')
-            .eq('player_id', user.id),
-          supabase
-            .from('grades')
-            .select('practice_id, score')
-            .eq('player_id', user.id)
-        ]);
-
-        if (attRes.data) {
-          // Combinamos la asistencia con la nota si existe para ese practice_id
-          const combinedData = attRes.data.map(att => {
-            const gradeEntry = gradesRes.data?.find(g => g.practice_id === att.practice_id);
-            return {
-              ...att,
-              score: gradeEntry ? gradeEntry.score : null
-            };
-          });
-          setAttendanceData(combinedData);
-        }
-
-      } catch (err: any) {
-        console.error('Error al cargar calendario:', err.message);
-      } finally {
-        setCalendarLoading(false);
-      }
-    };
-
-    fetchAttendanceAndPractices();
-  }, [user?.id, currentDate]);
-
-  const renderAttendanceCalendar = () => {
-    if (calendarLoading) return <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
-
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDay = new Date(year, month, 1).getDay();
-    const days = [];
-    const todayStr = getTodayArgentina();
-
-    const availableSports = Array.from(new Set(userSportsInfo.map(info => info.sport).filter(Boolean)));
-
-    for (let i = 0; i < firstDay; i++) {
-        days.push(<div key={`empty-${i}`} className="h-24 md:h-32 border border-slate-50" />);
+// --- LÓGICA DE ASISTENCIA Y NOTAS (CORREGIDA SEGÚN ESQUEMA SQL) ---
+useEffect(() => {
+  const fetchAttendanceAndPractices = async () => {
+    if (!user?.id || !user?.category_id) {
+      if (user?.id) setCalendarLoading(false);
+      return;
     }
 
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    try {
+      setCalendarLoading(true);
 
-      // Filtrado Multievento
-      const practicesForDay = scheduledPractices.filter(p => {
-          if (!p.scheduled_date) return false;
-          if (p.scheduled_date.split('T')[0] !== dayStr) return false;
-          const practiceSport = p.categories?.deportes?.name;
-          if (calendarSportFilter !== 'Todos' && practiceSport !== calendarSportFilter) return false;
-          return true;
-      });
-      
-      const isPast = dayStr < todayStr;
-      const isToday = dayStr === todayStr;
+      // 1. Traemos las prácticas (Basado en category_id)
+      const { data: practicesData } = await supabase
+        .from('practices')
+        .select('id, scheduled_date, observations, event_type, title, category_id')
+        .eq('category_id', user.category_id);
 
-      days.push(
-        <div key={d} className="h-24 md:h-32 border border-slate-100 p-1 relative flex flex-col bg-white overflow-hidden">
-          <span className={`text-[10px] font-black mb-1 ${isToday ? 'text-indigo-600' : 'text-slate-300'}`}>{d}</span>
+      // 2. Traemos la asistencia (Usando player_id según esquema)
+      const { data: attData } = await supabase
+        .from('attendance')
+        .select('practice_id, status')
+        .eq('player_id', user.id);
 
-          <div className="flex flex-col gap-1 overflow-y-auto no-scrollbar">
-            {practicesForDay.map((practice, idx) => {
-              const record = attendanceData.find(r => r.practice_id === practice.id);
-              const hasData = record && (record.status === 'present' || record.status === 'absent');
-              const isExamen = practice.event_type === 'examen';
+      // 3. Traemos las notas (Usando player_id según esquema)
+      const { data: gradesData } = await supabase
+        .from('grades')
+        .select('practice_id, score_writing, score_speaking')
+        .eq('player_id', user.id); // <--- Corregido: era player_id, no id
 
-              let statusLabel = '';
-              let statusClass = '';
-
-              if (hasData) {
-                if (record.status === 'present') {
-                    statusLabel = 'pasados';
-                    statusClass = isExamen ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700';
-                } else {
-                    statusLabel = 'AUSENTE';
-                    statusClass = 'bg-red-100 text-red-700';
-                }
-              } else {
-                if (isToday) {
-                    statusLabel = 'HOY';
-                    statusClass = 'bg-indigo-600 text-white shadow-sm';
-                } else if (isPast) {
-                    statusLabel = 'pasados';
-                    statusClass = 'bg-slate-100 text-slate-500';
-                } else {
-                    statusLabel = 'proximo';
-                    statusClass = isExamen ? 'bg-orange-500 text-white' : 'bg-indigo-50 text-indigo-400';
-                }
-              }
-
-              const horario = practice.observations?.replace('Turno: ', '').trim() || '';
-
-              return (
-                <div key={practice.id || idx} className={`flex flex-col rounded-lg border p-1 transition-all ${isExamen ? 'border-orange-200 bg-orange-50/50' : 'border-transparent'}`}>
-                  {/* Badge de Asistencia */}
-                  <div className={`py-1 rounded-md text-[7px] font-black text-center uppercase tracking-tighter ${statusClass}`}>
-                    {statusLabel}
-                  </div>
-
-                  {/* Horario extraído de observations */}
-                  {horario && (
-                    <div className={`text-[8px] font-black text-center mt-1 ${isExamen ? 'text-orange-600' : 'text-slate-600'}`}>
-                      {horario}
-                    </div>
-                  )}
-
-                  {/* NOTA (Solo visible si es examen y hay nota) */}
-                  {isExamen && record?.score && record.status === 'present' && (
-                    <div className="mt-1 bg-white border border-orange-200 rounded-md py-0.5 text-center shadow-sm">
-                      <span className="text-[9px] font-black text-orange-600">NOTA: {record.score}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 pb-10 text-left">
-        <div className="mb-6 mt-2 text-left px-4 md:px-0">
-          <h2 className="text-2xl md:text-3xl font-black text-[#1e1b4b] uppercase tracking-tighter">Mi Asistencia</h2>
-          <p className="text-slate-500 text-sm">Calendario de clases y registro de presencias.</p>
-          
-          {availableSports.length > 1 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button 
-                onClick={() => setCalendarSportFilter('Todos')}
-                className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${calendarSportFilter === 'Todos' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50'}`}
-              >
-                Todos
-              </button>
-              {availableSports.map((sport: any) => (
-                <button 
-                  key={sport}
-                  onClick={() => setCalendarSportFilter(sport)}
-                  className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${calendarSportFilter === sport ? 'bg-orange-500 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50'}`}
-                >
-                  {sport}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      // 4. Cruzamos la data por practice_id
+      const combinedData = attData?.map(att => {
+        // Buscamos la nota que coincida con esta práctica
+        const grade = gradesData?.find(g => g.practice_id === att.practice_id);
         
-        <div className="bg-white rounded-[32px] md:rounded-[40px] shadow-xl border border-slate-100 overflow-hidden mx-4 md:mx-0">
-          <div className="p-4 md:p-8 bg-slate-50 flex justify-between items-center border-b">
-              <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded-full"><ChevronLeft/></button>
-              <span className="font-black text-[10px] md:text-sm uppercase tracking-[0.2em] text-indigo-950">{currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</span>
-              <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 hover:bg-white rounded-full"><ChevronRight/></button>
-          </div>
-          <div className="grid grid-cols-7">
-            {['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'].map(d => <div key={d} className="bg-slate-50 py-3 md:py-4 text-center text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>)}
-            {days}
-          </div>
+        return {
+          practice_id: att.practice_id,
+          status: att.status,
+          score_writing: grade?.score_writing ?? '-',
+          score_speaking: grade?.score_speaking ?? '-'
+        };
+      }) || [];
+
+      if (practicesData) setScheduledPractices(practicesData);
+      setAttendanceData(combinedData);
+
+    } catch (err) {
+      console.error("Error cargando portal:", err);
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+  
+  fetchAttendanceAndPractices();
+}, [user?.id, user?.category_id]);
+
+const renderAttendanceCalendar = () => {
+  // Función de fecha definida aquí adentro para evitar el error de "used before declaration"
+  const getTodayArgentina = () => {
+    const now = new Date();
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+  };
+
+  if (calendarLoading) return <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const days = [];
+  const todayStr = getTodayArgentina();
+
+  for (let i = 0; i < firstDay; i++) {
+    days.push(<div key={`empty-${i}`} className="h-24 md:h-32 border border-slate-50" />);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+const practicesForDay = scheduledPractices.filter(p => {
+      // 1. Validamos que la práctica tenga fecha
+      if (!p.scheduled_date) return false;
+
+      // 2. Filtro de fecha (Igual que en el código de profesor)
+      const matchesDate = p.scheduled_date.startsWith(dayStr);
+
+      // 3. Filtro de categoría (Solo mostramos si coincide con la del alumno)
+      // Convertimos a String para evitar problemas si uno es número y otro texto
+      const matchesCategory = String(p.category_id) === String(user?.category_id);
+
+      return matchesDate && matchesCategory;
+    });
+
+    const isPast = dayStr < todayStr;
+    const isToday = dayStr === todayStr;
+
+    days.push(
+      <div key={d} className="h-24 md:h-32 border border-slate-100 p-1 relative flex flex-col bg-white overflow-hidden">
+        <span className={`text-[10px] font-black mb-1 ${isToday ? 'text-indigo-600 underline underline-offset-2' : 'text-slate-300'}`}>{d}</span>
+
+        <div className="flex flex-col gap-1.5 overflow-y-auto no-scrollbar">
+          {practicesForDay.map((practice, idx) => {
+            const record = attendanceData.find(r => r.practice_id === practice.id);
+            const type = (practice?.event_type || 'clase') as 'clase' | 'examen' | 'revision';
+            
+            const config = {
+              examen: { label: 'EXAMEN', bg: 'bg-orange-50', text: 'text-orange-500', icon: <Tag size={7} />, activeBg: 'bg-orange-600' },
+              revision: { label: 'REVISIÓN', bg: 'bg-emerald-50', text: 'text-emerald-500', icon: <Search size={7} />, activeBg: 'bg-emerald-600' },
+              clase: { label: 'CLASE', bg: 'bg-indigo-50', text: 'text-indigo-400', icon: null, activeBg: 'bg-indigo-600' }
+            };
+            const style = config[type];
+
+            let statusLabel = style.label;
+            let statusClass = isToday ? `${style.activeBg} text-white shadow-sm` : `${style.bg} ${style.text}`;
+
+            if (record) {
+            if (record.status === 'present') {
+              statusLabel = 'PRESENTE';
+              // Verde suave como el de Revisión
+              statusClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
+            } else if (record.status === 'absent') {
+              statusLabel = 'AUSENTE';
+              // Rojo suave
+              statusClass = 'bg-red-50 text-red-600 border border-red-100';
+            }
+          } else if (isPast) {
+            statusLabel = 'PASADO';
+            statusClass = 'bg-slate-50 text-slate-400 border border-slate-100';
+          } else if (isToday) {
+            statusLabel = 'HOY';
+            statusClass = 'bg-indigo-600 text-white shadow-sm';
+          }
+
+            const horario = practice.observations?.replace('Turno: ', '').trim() || '';
+
+            return (
+              <div key={practice.id || idx} className="flex flex-col gap-0.5 shrink-0">
+                {/* Badge de Estado */}
+                <div className={`p-0.5 rounded-[4px] text-[7px] font-black text-center uppercase tracking-tighter transition-colors ${statusClass}`}>
+                  {statusLabel}
+                </div>
+
+                {/* Info del Evento */}
+                <div className="flex flex-col items-center leading-tight">
+                  <div className="text-[7px] md:text-[8px] font-bold uppercase truncate flex items-center justify-center gap-0.5 text-slate-400">
+                    {style.icon}
+                    <span className="truncate">{practice.title || style.label}</span>
+                  </div>
+                </div>
+
+                {/* --- SECCIÓN DE NOTAS DUALES (W y S) AGREGADA --- */}
+                {type === 'examen' && record?.status === 'present' && (
+                  <div className="mt-1 flex flex-col gap-0.5">
+                    <div className="bg-white/90 border border-orange-200 rounded-md py-0.5 px-1 flex justify-between items-center shadow-sm">
+                      {/* Columna Writing */}
+                      <div className="flex flex-col items-center flex-1">
+                        <span className="text-[5px] font-bold text-slate-400 leading-none">W</span>
+                        <span className="text-[8px] font-black text-orange-600">
+                          {record.score_writing ?? '-'}
+                        </span>
+                      </div>
+                      
+                      {/* Divisor central */}
+                      <div className="w-[1px] h-3 bg-orange-100 mx-0.5" />
+                      
+                      {/* Columna Speaking */}
+                      <div className="flex flex-col items-center flex-1">
+                        <span className="text-[5px] font-bold text-slate-400 leading-none">S</span>
+                        <span className="text-[8px] font-black text-orange-600">
+                          {record.score_speaking ?? '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
-  };
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 pb-10 text-left">
+      <div className="mb-6 mt-2 text-left px-4 md:px-0">
+        <h2 className="text-2xl md:text-3xl font-black text-[#1e1b4b] uppercase tracking-tighter">Mi Asistencia</h2>
+        <p className="text-slate-500 text-sm">Calendario de clases y registro de presencias.</p>
+      </div>
+      
+      <div className="bg-white rounded-[32px] md:rounded-[40px] shadow-xl border border-slate-100 overflow-hidden mx-4 md:mx-0">
+        <div className="p-4 md:p-8 bg-slate-50 flex justify-between items-center border-b">
+            <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded-full"><ChevronLeft/></button>
+            <span className="font-black text-[10px] md:text-sm uppercase tracking-[0.2em] text-indigo-950">{currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</span>
+            <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 hover:bg-white rounded-full"><ChevronRight/></button>
+        </div>
+        <div className="grid grid-cols-7">
+          {['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'].map(d => <div key={d} className="bg-slate-50 py-3 md:py-4 text-center text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>)}
+          {days}
+        </div>
+      </div>
+    </div>
+  );
+};
 
   useEffect(() => { fetchUserData() }, [])
 
@@ -359,7 +403,6 @@ export default function PortalDashboard() {
 
         const { data: deportesClub } = await supabase.from('deportes').select('*').order('name');
         if (deportesClub) setAllSports(deportesClub);
-
         const { data: relData } = await supabase
           .from('user_categories')
           .select(`
