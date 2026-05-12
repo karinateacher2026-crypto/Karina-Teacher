@@ -273,7 +273,7 @@ export default function PortalLogin() {
                 onClick={handleInstallClick}
                 className="mt-4 px-4 py-2 bg-orange-100 text-orange-700 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-2 mx-auto hover:bg-orange-200 transition-all animate-bounce border border-orange-200"
               >
-                <Download size={14} /> Instalar App del Club
+                <Download size={14} /> Instalar App del sistema
               </button>
             )}
 
