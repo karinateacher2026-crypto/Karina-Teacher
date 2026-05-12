@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: CLIENT_CONFIG.name,
     description: "",
-    url: "https://www.cedetalvo.com.ar", // Cambiá esto cuando tengas el dominio
+    url: "https://butterfliesenglishclasses.com.ar/", // Cambiá esto cuando tengas el dominio
     siteName: CLIENT_CONFIG.name,
     images: [{ url: CLIENT_CONFIG.logoUrl, width: 512, height: 512 }],
     locale: "es_AR",

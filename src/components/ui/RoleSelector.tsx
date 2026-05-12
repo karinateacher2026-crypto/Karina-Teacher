@@ -52,26 +52,6 @@ export default function RoleSelector({ roles }: { roles: string[] }) {
           </div>
         </button>
       )}
-      {/* Opción PREPARADOR FÍSICO (Solo si es prep_fisico) */}
-{roles.includes('prep_fisico') && (
-  <button 
-    onClick={() => router.push('/portal/prep-fisico/rendimiento')}
-    className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-slate-50 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all group bg-white shadow-sm"
-  >
-    <div className="flex items-center gap-3">
-      <div className="bg-emerald-600 p-2 rounded-xl text-white group-hover:scale-110 transition-transform">
-        <Timer size={20} />
-      </div>
-      <div className="text-left">
-        <span className="block font-black text-slate-700 uppercase text-[11px] leading-none">Rendimiento Físico</span>
-        <span className="text-[10px] text-slate-400 font-bold italic">Preparador Físico</span>
-      </div>
-    </div>
-    <div className="text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
-      →
-    </div>
-  </button>
-)}
 
       {/* Opción MI PERFIL (Para Player) */}
       {roles.includes('player') && (

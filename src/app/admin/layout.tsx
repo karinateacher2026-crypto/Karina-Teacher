@@ -89,11 +89,11 @@ export default function AdminLayout({
         </div>
         <div className="flex flex-col justify-center overflow-hidden">
             <h1 className="font-bold text-sm leading-tight uppercase tracking-tight text-white truncate">
-    {CLIENT_CONFIG.name}
-</h1>
+            {CLIENT_CONFIG.name.split(' ')[0]}
+            </h1>
+          </div>
         </div>
-    </div>
-</div>
+        </div>
 
         {/* NAVEGACIÓN */}
         <nav className="flex-1 px-3 py-6 space-y-2 overflow-y-auto">

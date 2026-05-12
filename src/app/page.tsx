@@ -23,7 +23,21 @@ export default function Home() {
   // ==========================================
   // ESTADOS: ANIMACIÓN DEL HERO
   // ==========================================
-  const actionWords = ["rendir el First", "viajar por el mundo", "tu futuro profesional", "hablar sin miedo"]
+  const actionWords = [
+    "fly",
+    "discover your potential",
+    "become your best version",
+    "believe in yourself",
+    "shine",
+    "evolve",
+    "communicate",
+    "speak with confidence",
+    "express yourself",
+    "use your voice",
+    "speak fluently",
+    "understand the world",
+    "connect with others"
+  ]
   const [wordIndex, setWordIndex] = useState(0)
   const [fade, setFade] = useState(true)
 
@@ -46,37 +60,52 @@ export default function Home() {
 
   const fetchPublicCampusData = async () => {
     try {
-      const { data: cats } = await supabase
+      setLoadingCampus(true);
+      
+      // Traemos los datos
+      const { data: cats, error: catError } = await supabase
         .from('categories')
-        .select(`id, name, deportes(name), sedes(name)`)
-        .order('name')
+        .select(`id, name, deportes(name), sedes(name)`);
 
-      const { data: mats } = await supabase
+      if (catError) throw catError;
+
+      const { data: mats, error: matError } = await supabase
         .from('study_materials')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (matError) throw matError;
 
       if (cats && cats.length > 0) {
-        setCategories(cats)
-        setActiveCategory(cats[0].id.toString()) 
+        // 1. Filtramos los particulares
+        const publicCats = cats.filter(c => !c.name.toLowerCase().includes('particular'));
+        
+        // 2. FORZAMOS EL ORDEN POR ID (1, 2, 3...) EN EL FRONTEND
+        // Esto garantiza que Kids 1 (ID 1) vaya arriba de todo sin importar qué diga la BD
+        const sortedCats = publicCats.sort((a, b) => a.id - b.id);
+        
+        setCategories(sortedCats);
+        
+        // 3. Activamos la primera (Kids 1)
+        if (sortedCats.length > 0) {
+          setActiveCategory(sortedCats[0].id.toString());
+        }
       }
-      if (mats) setMaterials(mats)
+      
+      if (mats) setMaterials(mats);
     } catch (error) {
-      console.error("Error cargando el campus:", error)
+      console.error("Error cargando el campus:", error);
     } finally {
-      setLoadingCampus(false)
+      setLoadingCampus(false);
     }
   }
 
   // Utilidades para formatear el campus
+  // Utilidades para formatear el campus
   const formatCategoryName = (cat: any) => {
     if (!cat) return ''
-    const lang = cat.deportes?.name || ''
-    const branch = cat.sedes?.name || ''
-    let fullName = cat.name
-    if (lang) fullName += ` - ${lang}`
-    if (branch) fullName += ` (${branch})`
-    return fullName
+    // Retornamos solo el nombre de la categoría (ej: "Kids 1")
+    return cat.name
   }
 
   const getTypeDesign = (typeStr: string) => {
@@ -103,18 +132,18 @@ export default function Home() {
   const cursos = [
     {
       title: "Kids & Pre-Teens",
-      desc: "Aprendizaje lúdico y natural para los más chicos. Juegos, canciones y primeras herramientas comunicativas.",
-      tags: ["Desde 6 años", "Material Interactivo"]
+      desc: "Meaningful and natural learning for young learners. Through games, songs and interactive activities, students develop communication skills, confidence and a positive connection with English from an early age.",
+      tags: ["From 7 years old", "Interactive Material"]
     },
     {
       title: "Teens & Young Adults",
-      desc: "Inglés dinámico enfocado en el uso real. Conversación, cultura y preparación para el colegio o la universidad.",
-      tags: ["Conversación", "Proyectos"]
+      desc: "Dynamic English focused on real communication and personal growth. Through conversation, projects and meaningful learning experiences, students build confidence, develop fluency and prepare for school, university and future opportunities.",
+      tags: ["Conversation", "Projects"]
     },
     {
-      title: "International Exams",
-      desc: "Preparación intensiva para certificaciones de Cambridge (B2 First, C1 Advanced). Simulacros y técnicas de examen.",
-      tags: ["Cambridge", "Simulacros"]
+      title: "English for Specific Purposes",
+      desc: "Personalized one-to-one English lessons for professionals from different fields. Through customized lessons, real-life situations and practical activities, students develop confidence and the specific language skills they need for their careers, studies and professional communication.",
+      tags: ["One-to-One Lessons", "Real Communication"]
     }
   ]
 
@@ -141,15 +170,12 @@ export default function Home() {
             <span className="font-black tracking-tight text-sm md:text-lg uppercase leading-none">
               {CLIENT_CONFIG.name}
             </span>
-            <span className="text-[10px] md:text-xs font-semibold text-indigo-600 uppercase tracking-widest mt-1">
-              English Institute
-            </span>
           </div>
         </div>
         
         <div className="flex items-center gap-4">
           <a href="#campus" className="hidden md:flex text-sm font-bold text-gray-600 hover:text-indigo-600 transition-colors mr-4">
-            Campus Virtual
+            Virtual Campus
           </a>
           <Link 
             href="/portal" 
@@ -187,12 +213,15 @@ export default function Home() {
           </div>
 
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white mb-6 tracking-tighter leading-[1.1]">
-            El inglés que <br className="hidden md:block" /> te abre puertas.
+            Butterflies English Classes
+            <span className="block text-2xl md:text-3xl lg:text-4xl font-medium text-indigo-200 mt-2 md:mt-4 tracking-normal">
+              Because learning means transformation
+            </span>
           </h1>
 
           {/* TEXTO ROTATIVO */}
           <div className="text-xl md:text-3xl font-medium text-gray-400 mb-12 flex flex-col md:flex-row items-center justify-center gap-2 h-20 md:h-12">
-            <span>Preparate para</span>
+            <span>Be ready to</span>
             <span 
               className={`font-bold text-indigo-400 transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}
             >
@@ -202,53 +231,82 @@ export default function Home() {
 
           <div className="flex flex-col sm:flex-row justify-center gap-4 w-full sm:w-auto">
             <a 
-              href={`https://wa.me/${CLIENT_CONFIG.contact?.phone}`}
-              target="_blank"
-              rel="noreferrer"
-              className="px-8 py-4 rounded-xl text-lg font-bold transition-all bg-white text-indigo-950 hover:bg-gray-100 flex items-center justify-center gap-2 group"
-            >
-              Test de Nivel Gratis
-              <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-            </a>
-            <a 
               href="#metodologia" 
-              className="px-8 py-4 rounded-xl text-lg font-bold transition-all border border-gray-600 text-white hover:bg-white/5 flex items-center justify-center"
+              className="px-8 py-4 rounded-xl text-lg font-bold transition-all bg-white text-indigo-950 hover:bg-gray-100 flex items-center justify-center gap-2 group shadow-lg"
             >
-              Conocé más
+              Start your transformation
+              <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </a>
           </div>
         </div>
       </header>
 
-      {/* STATS SECTION */}
-      <section className="bg-white py-12 border-b border-gray-100 relative -mt-8 z-30 max-w-6xl mx-auto rounded-3xl shadow-xl shadow-gray-200/20 px-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 divide-x divide-gray-100">
-          {stats.map((stat, i) => (
-            <div key={i} className="flex flex-col items-center text-center px-4">
-              <div className="bg-indigo-50 p-3 rounded-2xl mb-3">{stat.icon}</div>
-              <span className="text-3xl md:text-4xl font-black text-gray-900">{stat.value}</span>
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">{stat.label}</span>
-            </div>
-          ))}
+      {/* SECCIÓN DESCRIPCIÓN (REEMPLAZA A STATS) */}
+      <section className="bg-white py-12 md:py-16 border-b border-gray-100 relative -mt-8 z-30 max-w-6xl mx-auto rounded-3xl shadow-xl shadow-gray-200/20 px-6 md:px-12 text-center">
+        <div className="max-w-4xl mx-auto space-y-8">
+          
+          {/* Texto en Inglés */}
+          <div>
+            <h3 className="text-2xl md:text-3xl font-black text-indigo-950 mb-3 tracking-tight">
+              Butterflies English Classes is more than learning English.
+            </h3>
+            <p className="text-lg md:text-xl text-gray-600 font-medium leading-relaxed">
+              It is a space where students learn with purpose, discover their potential, build confidence and experience transformation through learning.
+            </p>
+          </div>
+
+          {/* Separador sutil */}
+          <div className="w-16 h-1 bg-indigo-100 mx-auto rounded-full"></div>
+
+          {/* Texto en Español */}
+          <div>
+            <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-3 tracking-tight">
+              Butterflies English Classes es más que aprender un idioma.
+            </h3>
+            <p className="text-base md:text-lg text-gray-500 font-medium leading-relaxed">
+              Es un espacio para aprender con propósito, crecer con confianza, comunicarse naturalmente y transformarse a través del aprendizaje.
+            </p>
+          </div>
+
         </div>
       </section>
 
       {/* NUESTRA OFERTA (CURSOS) */}
       <section id="metodologia" className="py-24 max-w-6xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight">Cursos para cada etapa</h2>
-          <p className="text-gray-500 mt-4 text-lg font-medium">Acompañamos tu aprendizaje desde los primeros pasos hasta la fluidez total.</p>
+        <div className="text-center mb-16 space-y-6">
+          {/* Inglés */}
+          <div>
+            <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight">
+              Courses for every age and level
+            </h2>
+            <p className="text-indigo-600 mt-3 text-lg md:text-xl font-bold">
+              Learn, grow and transform.
+            </p>
+          </div>
+          
+          {/* Separador */}
+          <div className="w-12 h-1 bg-gray-200 mx-auto rounded-full"></div>
+          
+          {/* Español */}
+          <div>
+            <h3 className="text-xl md:text-2xl font-black text-gray-700 tracking-tight">
+              Cursos para todas las edades y niveles
+            </h3>
+            <p className="text-gray-500 mt-2 text-base md:text-lg font-medium">
+              Aprendé, crecé y transformate.
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {cursos.map((curso, i) => (
-            <div key={i} className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-6">
+            <div key={i} className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-6 mx-auto">
                 <BookOpen className="text-indigo-600" size={24} />
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-4">{curso.title}</h3>
-              <p className="text-gray-600 leading-relaxed mb-8 min-h-[80px]">{curso.desc}</p>
-              <div className="flex gap-2 flex-wrap">
+              <p className="text-gray-600 leading-relaxed mb-8 flex-grow text-justify">{curso.desc}</p>
+              <div className="flex justify-center gap-2 flex-wrap mt-auto">
                 {curso.tags.map((tag, j) => (
                   <span key={j} className="px-3 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-600">
                     {tag}
@@ -267,11 +325,11 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-900/50 border border-indigo-800 text-indigo-300 font-bold text-xs uppercase tracking-widest mb-4">
-                <Sparkles size={14} /> Material Exclusivo
+                <Sparkles size={14} /> Exclusive Material
               </div>
-              <h2 className="text-4xl md:text-5xl font-black tracking-tight">Campus Virtual</h2>
+              <h2 className="text-4xl md:text-5xl font-black tracking-tight">Virtual Campus</h2>
               <p className="text-indigo-200 mt-4 text-lg font-medium">
-                    Seleccioná tu curso y accedé a todos los recursos complementarios, juegos y actividades preparados por {CLIENT_CONFIG.name}.
+                Access complementary resources, interactive activities and exclusive materials designed to help you grow, communicate and transform through English.
               </p>
             </div>
           </div>
@@ -285,15 +343,15 @@ export default function Home() {
             <>
               {/* PESTAÑAS */}
               {categories.length > 0 ? (
-                <div className="flex flex-wrap gap-3 mb-12">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-12">
                   {categories.map((cat) => (
                     <button
                       key={cat.id}
                       onClick={() => setActiveCategory(cat.id.toString())}
-                      className={`px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 ${
+                      className={`px-4 py-3 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 border text-center ${
                         activeCategory === cat.id.toString()
-                          ? 'bg-white text-indigo-950 shadow-lg scale-105'
-                          : 'bg-indigo-900/50 text-indigo-200 border border-indigo-800 hover:bg-indigo-800 hover:text-white'
+                          ? 'bg-white text-indigo-950 shadow-lg scale-105 border-white'
+                          : 'bg-indigo-900/50 text-indigo-200 border-indigo-800 hover:bg-indigo-800 hover:text-white'
                       }`}
                     >
                       {formatCategoryName(cat)}
@@ -351,15 +409,15 @@ export default function Home() {
 
       {/* CALL TO ACTION FINAL */}
       <section className="py-24 bg-white text-center px-6">
-        <h2 className="text-3xl md:text-5xl font-black text-gray-900 mb-6 tracking-tight">¿Listo para empezar?</h2>
-        <p className="text-gray-500 mb-10 text-lg max-w-xl mx-auto">Sumate a nuestra comunidad y empezá a hablar inglés desde la primera clase.</p>
+        <h2 className="text-3xl md:text-5xl font-black text-gray-900 mb-6 tracking-tight">Ready to start?</h2>
+        <p className="text-gray-500 mb-10 text-lg max-w-xl mx-auto">Join our community and start speaking English from your very first class.</p>
         <a 
-              href={`https://wa.me/${CLIENT_CONFIG.social?.whatsapp || CLIENT_CONFIG.contact?.phone}?text=Hola!%20Me%20gustar%C3%ADa%20hacer%20un%20test%20de%20nivel%20gratuito.`}
-              target="_blank"
-              rel="noreferrer"
-              className="px-8 py-4 rounded-xl text-lg font-bold transition-all bg-white text-indigo-950 hover:bg-gray-100 flex items-center justify-center gap-2 group"
-            >
-          <MessageCircle size={24} /> Contactanos por WhatsApp
+          href={`https://wa.me/${CLIENT_CONFIG.social?.whatsapp || CLIENT_CONFIG.contact?.phone}?text=Hi!%20I%20would%20like%20more%20information.`}
+          target="_blank"
+          rel="noreferrer"
+          className="px-8 py-4 rounded-xl text-lg font-bold transition-all bg-white text-indigo-950 hover:bg-gray-100 flex items-center justify-center gap-2 group shadow-sm border border-gray-200"
+        >
+          <MessageCircle size={24} /> Contact us on WhatsApp
         </a>
       </section>
 
@@ -369,11 +427,12 @@ export default function Home() {
           <div className="col-span-1 md:col-span-2">
             <h3 className="text-2xl font-black mb-4 uppercase tracking-tight">{CLIENT_CONFIG.name}</h3>
             <p className="text-gray-400 text-sm max-w-sm leading-relaxed">
-              Formando talentos y derribando barreras idiomáticas. Instituto de inglés integral para todas las edades y niveles.
+              Developing confidence, talent and communication skills.
+An English learning space for all ages, levels and learning journeys.
             </p>
           </div>
           <div>
-            <h4 className="font-bold uppercase text-xs tracking-widest text-gray-500 mb-4">Contacto</h4>
+            <h4 className="font-bold uppercase text-xs tracking-widest text-gray-500 mb-4">Contact</h4>
             <ul className="space-y-3 text-sm text-gray-300">
               <li className="flex items-center gap-2"><MapPin size={16} className="text-indigo-400"/> Mar del Plata, Argentina</li>
               <li className="flex items-center gap-2"><Phone size={16} className="text-indigo-400"/> +{CLIENT_CONFIG.contact?.phone || CLIENT_CONFIG.social?.whatsapp}</li>

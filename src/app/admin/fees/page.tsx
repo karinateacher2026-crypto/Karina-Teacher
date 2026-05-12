@@ -77,7 +77,15 @@ export default function AdminFees() {
         .eq('deporte_id', sportId)
       
       if (massiveSedeIds.length > 0) query = query.in('categories.sede_id', massiveSedeIds)
-      if (massiveCats.length > 0) query = query.in('category_id', massiveCats)
+      if (massiveCats.length > 0) {
+        query = query.in('category_id', massiveCats);
+      } else {
+        // Blindaje: si no eligió ninguna, solo miramos las que pasaron el filtro visual
+        const validCatIds = availableCatsForMassive.map(c => c.id);
+        if (validCatIds.length > 0) {
+          query = query.in('category_id', validCatIds);
+        }
+      }
       
       // 🚀 NUEVO: APLICAR FILTRO DE ANTIGÜEDAD AL CHEQUEO
       if (massiveAntiquity === 'old') query = query.eq('users.estudianteAntiguo', true)
@@ -146,7 +154,11 @@ export default function AdminFees() {
 
  useEffect(() => {
     if (selectedSport) {
-      const filtered = dbCategories.filter(c => c.deportes?.name === selectedSport)
+      // Filtramos por idioma y EXCLUIMOS cualquier curso que contenga la palabra "particular"
+      const filtered = dbCategories.filter(c => 
+        c.deportes?.name === selectedSport && 
+        !c.name.toLowerCase().includes('particular')
+      )
       setAvailableCatsForMassive(filtered)
       setMassiveCats([]) 
       setMassiveSedeIds([])
@@ -242,6 +254,12 @@ export default function AdminFees() {
 
       if (massiveCats.length > 0) {
         query = query.in('category_id', massiveCats);
+      } else {
+        // Blindaje real al momento de generar la cuota
+        const validCatIds = availableCatsForMassive.map(c => c.id);
+        if (validCatIds.length > 0) {
+          query = query.in('category_id', validCatIds);
+        }
       }
 
       // 🚀 NUEVO: APLICAR FILTRO DE ANTIGÜEDAD A LA GENERACIÓN

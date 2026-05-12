@@ -151,7 +151,7 @@ export default function Register() {
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: 'https://www.clublacantera.com.ar/portal',
+          emailRedirectTo: 'https://www.butterfliesenglishclasses.com.ar/portal',
         },
       })
 

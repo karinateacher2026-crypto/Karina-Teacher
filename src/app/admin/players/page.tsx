@@ -40,6 +40,7 @@ export default function PlayersPage() {
  const [filterGender, setFilterGender] = useState<string>('all')
  const [filterSport, setFilterSport] = useState<string>('all')
  const [filterSede, setFilterSede] = useState<string>('all')
+ const [filterDebt, setFilterDebt] = useState<string>('all')
 
  const [isModalOpen, setIsModalOpen] = useState(false)
  const [formError, setFormError] = useState<string | null>(null);
@@ -567,10 +568,14 @@ const fetchAttendance = async () => {
       matchesGender = (dbGender !== 'm' && dbGender !== 'f' && dbGender !== "");
     }
   }
+// AGREGÁ ESTE BLOQUE 👇
+  let matchesDebt = true;
+  if (filterDebt === 'al_dia') matchesDebt = p.account_balance >= 0;
+  if (filterDebt === 'deudores') matchesDebt = p.account_balance < 0;
 
-  // Devolvemos el resultado cruzado
-  return matchesSearch && matchesStatus && matchesGender && matchesActivity;
- })
+  // MODIFICÁ EL RETURN PARA INCLUIR matchesDebt 👇
+  return matchesSearch && matchesStatus && matchesGender && matchesActivity && matchesDebt;
+})
 
  const filteredCategoriesForFilter = dbCategories.filter(cat => {
     const matchSport = filterSport === 'all' || cat.deporte_id?.toString() === filterSport;
@@ -661,6 +666,16 @@ const exportToExcel = () => {
       <option value="active">Activos</option>
       <option value="inactive">Inactivos</option>
      </select>
+    
+<select 
+       value={filterDebt} 
+       onChange={(e) => setFilterDebt(e.target.value)}
+       className="rounded-lg border-gray-200 bg-gray-50 py-1.5 px-3 text-xs font-bold text-gray-700 focus:border-indigo-500 focus:ring-indigo-500"
+      >
+       <option value="all">Saldo (todos)</option>
+       <option value="al_dia">Al Día (Saldo positivo)</option>
+       <option value="deudores">Deudores (Saldo negativo)</option>
+      </select>
 
      <select 
       value={filterSede} 

@@ -17,6 +17,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [filterRange, setFilterRange] = useState('este-mes');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterMethod, setFilterMethod] = useState('todos');
   const [activeMembers, setActiveMembers] = useState(0);
   
   // Datos para el gráfico comparativo mensual del año
@@ -51,7 +52,7 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
   useEffect(() => {
     fetchData();
     fetchMonthlyYearlyData(); 
-  }, [filterRange]);
+  }, [filterRange, filterMethod]); // <--- Agregá filterMethod acá
 
   const pieData = useMemo(() => {
     return categories.map(cat => {
@@ -157,17 +158,30 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
     setExpenses(todosLosMovimientos);
     setActiveMembers(activeMembersRes?.count || 0);
 
-    // --- CÁLCULO DE RECAUDACIÓN TOTAL (Cuotas + Extras) ---
+   // --- CÁLCULO DE RECAUDACIÓN TOTAL (Cuotas + Extras) ---
     let totalCobradas = 0;
     if (paymentsRes.data) {
       totalCobradas = paymentsRes.data
-        .filter(p => (p.method === 'transfer' && p.status === 'approved') || (p.method === 'cash' && p.status === 'completed'))
+        .filter(p => {
+          const isApprovedTransfer = p.method === 'transfer' && p.status === 'approved';
+          const isCompletedCash = p.method === 'cash' && p.status === 'completed';
+          
+          if (filterMethod === 'efectivo') return isCompletedCash;
+          if (filterMethod === 'transferencia') return isApprovedTransfer;
+          return isApprovedTransfer || isCompletedCash;
+        })
         .reduce((acc, curr) => acc + Number(curr.amount), 0);
     }
 
     let totalExtras = 0;
     if (incomesExtraRes.data) {
-      totalExtras = incomesExtraRes.data.reduce((acc, curr) => acc + Number(curr.amount), 0);
+      totalExtras = incomesExtraRes.data
+        .filter(i => {
+          if (filterMethod === 'efectivo') return i.payment_method === 'Efectivo';
+          if (filterMethod === 'transferencia') return i.payment_method === 'Transferencia';
+          return true;
+        })
+        .reduce((acc, curr) => acc + Number(curr.amount), 0);
     }
 
     setTotalIncomes(totalCobradas + totalExtras);
@@ -242,16 +256,23 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
     document.body.removeChild(link);
   };
 
- // 1. Esto se mantiene igual para filtrar las filas de la tabla de abajo
-  const filteredExpenses = expenses.filter(e => e.category.toLowerCase().includes(searchTerm.toLowerCase()));
+ // 1. Filtramos las filas de la tabla de abajo por búsqueda Y modalidad
+  const filteredExpenses = expenses.filter(e => {
+    const matchSearch = e.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchMethod = 
+      filterMethod === 'todos' ? true : 
+      filterMethod === 'efectivo' ? e.payment_method === 'Efectivo' : 
+      e.payment_method === 'Transferencia';
+      
+    return matchSearch && matchMethod;
+  });
 
-  // 2. CORRECCIÓN: Usamos 'expenses' directamente en lugar de 'filteredExpenses'
-  // Esto hace que el KPI de la tarjeta roja sea fijo según el calendario
-  const totalExpenses = expenses
+  // 2. Usamos el arreglo YA FILTRADO para que el KPI rojo también reaccione al selector
+  const totalExpenses = filteredExpenses
     .filter(e => e.type === 'egreso')
     .reduce((acc, curr) => acc + Number(curr.amount), 0);
 
-  // 3. El balance ahora también es fijo y real al usar el totalExpenses corregido
+  // 3. El balance neto se recalcula automáticamente
   const balance = totalIncomes - totalExpenses;
 
   // Funciones para abrir modales seteando el tipo
@@ -392,6 +413,15 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
             <option value="mes-pasado">Mes Pasado</option>
             <option value="este-año">Este Año</option>
             <option value="año-pasado">Año Pasado</option>
+          </select>
+        </div>
+        {/* NUEVO SELECTOR DE MODALIDAD 👇 */}
+        <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 w-full md:w-auto">
+          <CreditCard size={18} className="text-slate-400" />
+          <select value={filterMethod} onChange={(e) => setFilterMethod(e.target.value)} className="bg-transparent font-bold text-xs text-slate-600 outline-none cursor-pointer uppercase tracking-wider">
+            <option value="todos">Todos los métodos</option>
+            <option value="efectivo">Solo Efectivo</option>
+            <option value="transferencia">Solo Transferencia</option>
           </select>
         </div>
         <div className="flex-grow relative w-full">

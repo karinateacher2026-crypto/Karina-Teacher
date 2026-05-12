@@ -736,7 +736,7 @@ const practicesForDay = scheduledPractices.filter(p => {
               
               <div className="flex flex-col justify-center overflow-hidden">
                 <h1 className="font-bold text-sm leading-tight uppercase tracking-tight text-white truncate">
-                  {CLIENT_CONFIG.name}</h1>
+                  {CLIENT_CONFIG.name.split(' ')[0]}</h1>
               </div>
             </div>
           ) : (
@@ -810,7 +810,7 @@ const practicesForDay = scheduledPractices.filter(p => {
       <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-4 md:p-8 text-left`}>
         <div className="lg:hidden mb-4 flex items-center gap-3 text-left">
           <button onClick={() => setSidebarOpen(true)} className="p-2 bg-white rounded-lg shadow-sm border border-gray-200 text-[#1e1b4b] text-left"><Menu size={24}/></button>
-          <h1 className="font-black italic text-sm text-[#1e1b4b] uppercase text-left">{CLIENT_CONFIG.name}</h1>
+          <h1 className="font-black italic text-sm text-[#1e1b4b] uppercase text-left">{CLIENT_CONFIG.name.split(' ')[0]}</h1>
         </div>
         {activeTab === 'asistencia' && renderAttendanceCalendar()}
 
