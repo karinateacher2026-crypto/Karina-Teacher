@@ -100,6 +100,7 @@ export default function Home() {
     }
   }
 
+  
   // Utilidades para formatear el campus
   // Utilidades para formatear el campus
   const formatCategoryName = (cat: any) => {
