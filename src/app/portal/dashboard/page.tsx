@@ -30,42 +30,43 @@ export default function PortalDashboard() {
   const [userSportsInfo, setUserSportsInfo] = useState<any[]>([]);
 
 useEffect(() => {
-  const fetchRoles = async () => {
+  const fetchUserMetadata = async () => {
     if (!user?.id) return;
     
-    const { data, error } = await supabase
-      .from('users') 
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    try {
+      // Agrupamos las consultas para que se ejecuten en paralelo (más rápido)
+      const [rolesRes, categoryRes] = await Promise.all([
+        supabase.from('users').select('role').eq('id', user.id).single(),
+        supabase.from('user_categories').select('category_id').eq('user_id', user.id).maybeSingle()
+      ]);
 
-    if (!error && data) {
-      setRealRoles(Array.isArray(data.role) ? data.role : [data.role]);
+      // Seteamos los roles
+      if (!rolesRes.error && rolesRes.data) {
+        setRealRoles(Array.isArray(rolesRes.data.role) ? rolesRes.data.role : [rolesRes.data.role]);
+      }
+
+      // Seteamos la categoría en el objeto user de forma limpia
+      if (!categoryRes.error && categoryRes.data) {
+          // Guardamos el id en una constante externa. 
+          // Al estar parados acá, ya sabemos con 100% de certeza que 'data' no es null.
+          const newCategoryId = categoryRes.data.category_id;
+
+          setUser((prev: any) => {
+            // Si ya tenía la categoría, no hacemos nada para evitar loops
+            if (prev?.category_id === newCategoryId) return prev;
+            return { 
+              ...prev, 
+              category_id: newCategoryId 
+            };
+          });
+        }
+    } catch (err) {
+      console.error("Error al recuperar metadatos del alumno:", err);
     }
   };
-  fetchRoles();
-}, [user?.id]); // Solo depende del ID inicial
 
-// Nuevo bloque para obtener la categoría desde la tabla intermedia
-useEffect(() => {
-  const fetchUserCategory = async () => {
-    if (!user?.id) return;
-
-    const { data, error } = await supabase
-      .from('user_categories')
-      .select('category_id')
-      .eq('user_id', user.id)
-      .maybeSingle(); // Usamos maybeSingle por si el alumno aún no tiene categoría
-
-    if (!error && data) {
-      setUser((prev: any) => ({ 
-        ...prev, 
-        category_id: data.category_id 
-      }));
-    }
-  };
-  fetchUserCategory();
-}, [user?.id]);
+  fetchUserMetadata();
+}, [user?.id]); // Se dispara tanto al iniciar como si venís de otra pestaña y el id ya existe
 
   const displayCategory = userSportsInfo.length > 0 ? userSportsInfo[0].category : 'Sin Categoría';
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -129,37 +130,42 @@ useEffect(() => {
 // --- LÓGICA DE ASISTENCIA Y NOTAS (CORREGIDA SEGÚN ESQUEMA SQL) ---
 useEffect(() => {
   const fetchAttendanceAndPractices = async () => {
-    if (!user?.id || !user?.category_id) {
-      if (user?.id) setCalendarLoading(false);
-      return;
+    // Si no hay ID, no podemos hacer nada todavía
+    if (!user?.id) return;
+
+    // OJO: Si tenemos el ID pero falta la categoría, esperamos un nivel más.
+    // Pero si el componente se acaba de montar y venías de "Informar Pago", 
+    // necesitamos asegurarnos de que no muera acá.
+    if (!user?.category_id) {
+      // Intentamos un "Failsafe": Ir a buscar la categoría directo a la base si no está en el estado
+      const { data: catData } = await supabase
+        .from('user_categories')
+        .select('category_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (catData?.category_id) {
+        user.category_id = catData.category_id; // Mutación temporal controlada para el fetch actual
+      } else {
+        // Si posta no tiene categoría asignada en la BD, vaciamos el loader y salimos
+        setCalendarLoading(false);
+        return;
+      }
     }
 
     try {
       setCalendarLoading(true);
 
-      // 1. Traemos las prácticas (Basado en category_id)
-      const { data: practicesData } = await supabase
-        .from('practices')
-        .select('id, scheduled_date, observations, event_type, title, category_id')
-        .eq('category_id', user.category_id);
+      // Lanzamos las tres peticiones en paralelo para máxima velocidad
+      const [practicesRes, attendanceRes, gradesRes] = await Promise.all([
+        supabase.from('practices').select('id, scheduled_date, observations, event_type, title, category_id').eq('category_id', user.category_id),
+        supabase.from('attendance').select('practice_id, status').eq('player_id', user.id),
+        supabase.from('grades').select('practice_id, score_writing, score_speaking').eq('player_id', user.id)
+      ]);
 
-      // 2. Traemos la asistencia (Usando player_id según esquema)
-      const { data: attData } = await supabase
-        .from('attendance')
-        .select('practice_id, status')
-        .eq('player_id', user.id);
-
-      // 3. Traemos las notas (Usando player_id según esquema)
-      const { data: gradesData } = await supabase
-        .from('grades')
-        .select('practice_id, score_writing, score_speaking')
-        .eq('player_id', user.id); // <--- Corregido: era player_id, no id
-
-      // 4. Cruzamos la data por practice_id
-      const combinedData = attData?.map(att => {
-        // Buscamos la nota que coincida con esta práctica
-        const grade = gradesData?.find(g => g.practice_id === att.practice_id);
-        
+      // Procesamos la data de asistencia y notas
+      const combinedData = attendanceRes.data?.map(att => {
+        const grade = gradesRes.data?.find(g => g.practice_id === att.practice_id);
         return {
           practice_id: att.practice_id,
           status: att.status,
@@ -168,18 +174,18 @@ useEffect(() => {
         };
       }) || [];
 
-      if (practicesData) setScheduledPractices(practicesData);
+      if (practicesRes.data) setScheduledPractices(practicesRes.data);
       setAttendanceData(combinedData);
 
     } catch (err) {
-      console.error("Error cargando portal:", err);
+      console.error("Error cargando el calendario de asistencia:", err);
     } finally {
       setCalendarLoading(false);
     }
   };
   
   fetchAttendanceAndPractices();
-}, [user?.id, user?.category_id]);
+}, [user?.id, user?.category_id, activeTab]); // <--- Clave: agregamos activeTab para forzar re-fetch al cambiar de sección
 
 const renderAttendanceCalendar = () => {
   // Función de fecha definida aquí adentro para evitar el error de "used before declaration"
@@ -828,31 +834,49 @@ const practicesForDay = scheduledPractices.filter(p => {
   <p className="text-gray-500 text-sm">Bienvenido a tu panel personal.</p>
 </div>              
               <div className="w-full bg-white rounded-xl shadow-sm border border-gray-200 p-5 md:p-8 mb-8 relative overflow-hidden text-left">
-                <div className={`absolute left-0 top-0 bottom-0 w-2 ${visualBalance < 0 ? 'bg-red-500' : (visualBalance === 0 ? 'bg-gray-300' : 'bg-green-500')} text-left`}></div>
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-left">
-                    <div className="text-left">
-                        <p className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-left">ESTADO DE CUENTA (CONFIRMADO)</p>
-                        <h3 className={`text-2xl md:text-4xl font-black break-words text-left ${visualBalance < 0 ? 'text-red-600' : (visualBalance === 0 ? 'text-gray-400' : 'text-green-600')} text-left`}>
-                            {visualBalance < 0 ? 'Debe: ' : (visualBalance === 0 ? 'Saldo: ' : 'A favor: ')} 
-                            ${Math.abs(visualBalance).toLocaleString()}
-                        </h3>
-                    </div>
+              <div className={`absolute left-0 top-0 bottom-0 w-2 ${visualBalance < 0 ? 'bg-red-500' : (visualBalance === 0 ? 'bg-gray-300' : 'bg-green-500')} text-left`}></div>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-left">
+                  
+                  {/* Contenedor del Estado de Cuenta + Botón Pagar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-left w-full md:w-auto">
+                      <div className="text-left">
+                          <p className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-left">ESTADO DE CUENTA (CONFIRMADO)</p>
+                          <h3 className={`text-2xl md:text-4xl font-black break-words text-left ${visualBalance < 0 ? 'text-red-600' : (visualBalance === 0 ? 'text-gray-400' : 'text-green-600')} text-left`}>
+                              {visualBalance < 0 ? 'Debe: ' : (visualBalance === 0 ? 'Saldo: ' : 'A favor: ')} 
+                              ${Math.abs(visualBalance).toLocaleString()}
+                          </h3>
+                      </div>
 
-                    <div className="text-left md:text-right border-t md:border-t-0 pt-3 md:pt-0 w-full md:w-auto text-left">
+                      {/* BOTÓN PAGAR: Solo aparece si está en rojo (debe) */}
+                      {visualBalance < 0 && (
+                          <button
+                              onClick={() => setActiveTab('payment')}
+                              className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-sm transition-all duration-200 group active:scale-95 sm:mt-5 w-full sm:w-auto"
+                          >
+                              <CreditCard size={14} className="group-hover:animate-pulse" />
+                              <span>Pagar</span>
+                              <ArrowUpRight size={14} className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                          </button>
+                      )}
+                  </div>
+
+                  {/* Contenedor de la Categoría */}
+                  <div className="text-left md:text-right border-t md:border-t-0 pt-3 md:pt-0 w-full md:w-auto text-left">
                       <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase text-left mb-2">TU CATEGORÍA</p>
                       <div className="flex flex-wrap gap-4 md:justify-end">
-                        {userSportsInfo.length > 0 ? userSportsInfo.map((info, idx) => (
-                          <div key={idx} className="flex flex-col border-l-2 border-orange-500 pl-3 md:border-l-0 md:border-r-2 md:pl-0 md:pr-3 text-left md:text-right">
-                            <span className="text-[10px] font-black text-indigo-900 uppercase leading-none mb-1">{info.sport}</span>
-                            <span className="text-sm md:text-lg font-black text-gray-800 leading-tight">{info.category}</span>
-                          </div>
-                        )) : (
-                          <p className="text-sm font-black text-gray-400 italic text-left">Sin categorías asignadas</p>
-                        )}
+                          {userSportsInfo.length > 0 ? userSportsInfo.map((info, idx) => (
+                              <div key={idx} className="flex flex-col border-l-2 border-orange-500 pl-3 md:border-l-0 md:border-r-2 md:pl-0 md:pr-3 text-left md:text-right">
+                                  <span className="text-[10px] font-black text-indigo-900 uppercase leading-none mb-1">{info.sport}</span>
+                                  <span className="text-sm md:text-lg font-black text-gray-800 leading-tight">{info.category}</span>
+                              </div>
+                          )) : (
+                              <p className="text-sm font-black text-gray-400 italic text-left">Sin categorías asignadas</p>
+                          )}
                       </div>
-                    </div>
-                </div>
+                  </div>
+
               </div>
+          </div>
 
               <div className="w-full max-w-5xl text-left">
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
