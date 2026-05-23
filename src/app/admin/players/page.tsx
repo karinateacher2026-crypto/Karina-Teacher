@@ -41,12 +41,14 @@ export default function PlayersPage() {
  const [filterSport, setFilterSport] = useState<string>('all')
  const [filterSede, setFilterSede] = useState<string>('all')
  const [filterDebt, setFilterDebt] = useState<string>('all')
+ const [filterRole, setFilterRole] = useState<string>('all') // <-- NUEVO FILTRO ROL
 
  const [isModalOpen, setIsModalOpen] = useState(false)
  const [formError, setFormError] = useState<string | null>(null);
  const [paymentResponsible, setPaymentResponsible] = useState<'self' | 'third_party'>('self');
  const [isStatementOpen, setIsStatementOpen] = useState(false)
  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
+ const [showTeacherLockModal, setShowTeacherLockModal] = useState(false) // <-- NUEVO CANDADO
  
  const [playerToToggle, setPlayerToToggle] = useState<Player | null>(null)
  const [isSubmitting, setIsSubmitting] = useState(false)
@@ -60,7 +62,8 @@ export default function PlayersPage() {
   lastName: '', firstName: '', email: '', cuil: '', phone: '', address: '', 
   birth_date: '', gender: '', medical_notes: '', 
   emergency_contact: '', emergency_contact_name: '',
-  estudianteAntiguo: false
+  estudianteAntiguo: false,
+  role: ['player'] // <-- NUEVO ROL INICIAL
 })
 
  // ESTADOS PARA DEPORTES
@@ -150,7 +153,6 @@ const fetchAttendance = async () => {
           deportes ( name )
         )
       `)
-      .contains('role', ['player'])
       .order('name', { ascending: true })
    if (error) throw error
    setPlayers(data || [])
@@ -315,7 +317,20 @@ const fetchAttendance = async () => {
    prev.includes(sport) ? prev.filter(s => s !== sport) : [...prev, sport]
  )
  }
-
+const toggleRole = (roleValue: string) => {
+  setFormData(prev => {
+   const currentRoles = prev.role as unknown as string[];
+   if (currentRoles.includes(roleValue)) {
+    if (currentRoles.length === 1) {
+     alert('El usuario debe tener al menos un rol.');
+     return prev;
+    }
+    return { ...prev, role: currentRoles.filter(r => r !== roleValue) };
+   } else {
+    return { ...prev, role: [...currentRoles, roleValue] };
+   }
+  });
+ }
  // --- LÓGICA VINCULACIÓN HERMANOS ---
  const handleSiblingSearch = async (term: string) => {
  setSiblingSearch(term)
@@ -406,7 +421,8 @@ const fetchAttendance = async () => {
    medical_notes: player.medical_notes || '', 
    emergency_contact: player.emergency_contact || '', 
    emergency_contact_name: player.emergency_contact_name || '',
-   estudianteAntiguo: player.estudianteAntiguo || false // <--- LÍNEA AGREGADA
+   estudianteAntiguo: player.estudianteAntiguo || false,
+   role: Array.isArray(player.role) ? player.role : [player.role || 'player'] // <-- AGREGA ESTO
 })
 
   if (player.payer_name) {
@@ -418,7 +434,7 @@ const fetchAttendance = async () => {
   }
  } else { 
   setEditingPlayer(null)
-  setFormData({ lastName: '', firstName: '', email: '', cuil: '', phone: '', address: '', birth_date: '', gender: '', medical_notes: '', emergency_contact: '', emergency_contact_name: '', estudianteAntiguo: false })
+  setFormData({ lastName: '', firstName: '', email: '', cuil: '', phone: '', address: '', birth_date: '', gender: '', medical_notes: '', emergency_contact: '', emergency_contact_name: '', estudianteAntiguo: false, role: ['player'] })
   setPayers([{ name: '', cuil: '' }])
   setSelectedSports([])
  }
@@ -429,7 +445,8 @@ const fetchAttendance = async () => {
  e.preventDefault(); setIsSubmitting(true)
  try {
   if (selectedSports.length === 0) {
-   alert('Debe seleccionar al menos un deporte.');
+   alert('Debe seleccionar al menos un idioma.');
+
    setIsSubmitting(false); return;
   }
 
@@ -463,27 +480,30 @@ const fetchAttendance = async () => {
   let finalUserId = editingPlayer?.id; 
 
   // 2. Guardado blindado en la tabla 'users'
+  // 2. Guardado blindado en la tabla 'users'
   if (editingPlayer) { 
-   const { error: updateError } = await supabase.from('users').update(dataToSave).eq('id', editingPlayer.id);
-   if (updateError) throw new Error(`Error actualizando perfil: ${updateError.message}`);
-  } 
-  else { 
-   const { data: authData, error: authError } = await supabase.auth.signUp({
-     email: formData.email,
-     password: formData.cuil,
-     options: {
-      data: { full_name: fullName, cuil: formData.cuil, role: 'player' }
-     }
-   })
-   if (authError) throw new Error(`Error en Auth: ${authError.message}`);
+   // --- CANDADO DE SEGURIDAD PARA PROFESORES ---
+   const oldRoles = Array.isArray(editingPlayer.role) ? editingPlayer.role : [editingPlayer.role];
+   const newRoles = formData.role as unknown as string[];
    
-   if (authData.user) {
-     finalUserId = authData.user.id; 
-     const { error: insertError } = await supabase.from('users').insert({ 
-       ...dataToSave, id: finalUserId, role: 'player', status: 'active', account_balance: 0
-     });
-     if (insertError) throw new Error(`Error creando perfil: ${insertError.message}`);
+   // Si era profe y le están sacando el rol
+   if (oldRoles.includes('teacher') && !newRoles.includes('teacher')) {
+     const { data: assignments } = await supabase
+       .from('professor_assignments')
+       .select('id')
+       .eq('professor_id', editingPlayer.id)
+       .limit(1);
+       
+     if (assignments && assignments.length > 0) {
+       setShowTeacherLockModal(true);
+       setIsSubmitting(false);
+       return;
+     }
    }
+
+   // Actualizamos incluyendo los roles
+   const { error: updateError } = await supabase.from('users').update({ ...dataToSave, role: formData.role }).eq('id', editingPlayer.id);
+   if (updateError) throw new Error(`Error actualizando perfil: ${updateError.message}`);
   }
 
   // --- 🚀 SOLUCIÓN: ACTUALIZACIÓN INTELIGENTE DE DEPORTES ---
@@ -541,7 +561,7 @@ const fetchAttendance = async () => {
  const filteredPlayers = players.filter(p => {
   const matchesSearch = (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || (p.cuil || "").includes(searchTerm)
   const matchesStatus = filterStatus === 'all' || p.status === filterStatus
-  
+  const matchesRole = filterRole === 'all' || (p.role && p.role.includes(filterRole)); // <-- NUEVO
   const ucs = p.user_categories || [];
 
   // 🚀 LA SOLUCIÓN: INTERSECCIÓN DE FILTROS
@@ -574,7 +594,8 @@ const fetchAttendance = async () => {
   if (filterDebt === 'deudores') matchesDebt = p.account_balance < 0;
 
   // MODIFICÁ EL RETURN PARA INCLUIR matchesDebt 👇
-  return matchesSearch && matchesStatus && matchesGender && matchesActivity && matchesDebt;
+  // MODIFICÁ EL RETURN PARA INCLUIR matchesRole 👇
+ return matchesSearch && matchesStatus && matchesGender && matchesActivity && matchesDebt && matchesRole;
 })
 
  const filteredCategoriesForFilter = dbCategories.filter(cat => {
@@ -655,6 +676,16 @@ const exportToExcel = () => {
      <div className="flex items-center gap-2 text-gray-400">
       <Filter size={14}/>
       <span className="text-[10px] font-bold uppercase tracking-widest">Filtros</span>
+     <select 
+       value={filterRole} 
+       onChange={(e) => setFilterRole(e.target.value)}
+       className="rounded-lg border-gray-200 bg-gray-50 py-1.5 px-3 text-xs font-bold text-gray-700 focus:border-indigo-500 focus:ring-indigo-500"
+      >
+       <option value="all">Rol (Todos)</option>
+       <option value="player">Estudiantes</option>
+       <option value="teacher">Profesores</option>
+       <option value="admin">Administradores</option>
+      </select>
      </div>
 
      <select 
@@ -1124,7 +1155,7 @@ const exportToExcel = () => {
           
           // VALIDACIÓN DE DEPORTE
           if (selectedSports.length === 0) {
-            setFormError("Debe seleccionar al menos un deporte.");
+            setFormError("Debe seleccionar al menos un idioma.");
             return;
           }
 
@@ -1172,6 +1203,34 @@ const exportToExcel = () => {
               <label className="block text-[10px] font-bold text-gray-700 uppercase ml-1 text-left flex items-center gap-1 text-left">Email <span className="text-red-500 font-black text-xs">*</span></label>
               <input required type="email" placeholder="usuario@gmail.com" className="w-full p-2.5 border border-gray-300 rounded-xl font-bold text-xs text-gray-900 outline-none focus:ring-2 focus:ring-indigo-500 transition bg-white text-left" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
             </div>
+
+            {/* SOLO SE MUESTRA EL ROL SI ESTAMOS EDITANDO A ALGUIEN QUE YA EXISTE */}
+            {editingPlayer && (
+              <div className="space-y-2 text-left mt-4 border-t border-gray-200 pt-3">
+                <label className="block text-[10px] font-bold text-gray-700 uppercase ml-1 flex items-center gap-1">Roles y Permisos <span className="text-red-500 font-black text-xs">*</span></label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'player', label: 'Estudiante' },
+                    { id: 'teacher', label: 'Profesor' },
+                    { id: 'admin', label: 'Administrador' }
+                  ].map(r => {
+                    const rolesArray = formData.role as unknown as string[];
+                    const isSelected = rolesArray.includes(r.id);
+                    return (
+                      <button 
+                        key={r.id} 
+                        type="button" 
+                        onClick={() => toggleRole(r.id)} 
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-[10px] transition-all border ${isSelected ? 'bg-gray-800 text-white border-gray-900 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+                      >
+                        {r.label}
+                        {isSelected && <Check size={12} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* RESPONSABLE DE PAGOS (IDÉNTICO A DASHBOARD) */}
@@ -1322,7 +1381,35 @@ const exportToExcel = () => {
     </div>
   </div>
 )}
-
+{/* MODAL CANDADO PROFESOR */}
+   {showTeacherLockModal && (
+     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 text-center">
+         <div className="p-6">
+           <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4 border-4 border-red-50">
+             <Shield size={32} className="text-red-500" />
+           </div>
+           <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight mb-2">Candado de Seguridad</h3>
+           <p className="text-sm text-gray-500 font-medium">
+             No podés quitarle el rol de <strong>Profesor</strong> porque todavía tiene cursos a cargo.
+           </p>
+           <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
+             <p className="text-xs text-gray-600 font-bold uppercase">
+               Desasignalo primero desde la pestaña "Profes".
+             </p>
+           </div>
+         </div>
+         <div className="p-4 bg-gray-50 border-t border-gray-100">
+           <button 
+             onClick={() => setShowTeacherLockModal(false)} 
+             className="w-full py-3 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition shadow-sm"
+           >
+             Entendido
+           </button>
+         </div>
+       </div>
+     </div>
+   )}
    {/* MENSAJE DE ÉXITO FLOTANTE (TOAST) */}
    {showToast && (
      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 animate-in fade-in slide-in-from-bottom-5">

@@ -2,6 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /api/
-Disallow: /portal/dashboard/
+Disallow: /portal/estado-cuenta/
 
 Sitemap: https://www.butterfliesenglishclasses.com.ar/sitemap.xml

@@ -228,11 +228,11 @@ export default function PortalLogin() {
                             <Shield size={18}/> Ir al Panel Admin
                         </button>
                     ) : isTeacher ? (
-                        <button onClick={() => router.push('/portal/teacher/dashboard')} className="w-full py-4 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition shadow-lg flex items-center justify-center gap-3 uppercase text-sm">
+                        <button onClick={() => router.push('/portal/teacher/calendario')} className="w-full py-4 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition shadow-lg flex items-center justify-center gap-3 uppercase text-sm">
                             <ClipboardList size={18}/> Ir al Panel Profesor
                         </button>
                     ) : (
-                         <button onClick={() => router.push('/portal/dashboard')} className="w-full py-4 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition shadow-lg flex items-center justify-center gap-3 uppercase text-sm">
+                         <button onClick={() => router.push('/portal/estadp-cuenta')} className="w-full py-4 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition shadow-lg flex items-center justify-center gap-3 uppercase text-sm">
                             <UserCircle size={18}/> Ir a Mi Perfil
                         </button>
                     )

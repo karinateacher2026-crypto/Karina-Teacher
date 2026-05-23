@@ -35,7 +35,7 @@ export default function RoleSelector({ roles }: { roles: string[] }) {
       {/* Opción PANEL PROFESOR (Solo si es Teacher) */}
       {roles.includes('teacher') && (
         <button 
-          onClick={() => router.push('/portal/teacher/dashboard')}
+          onClick={() => router.push('/portal/teacher/calendario')}
           className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-slate-50 hover:border-amber-500 hover:bg-amber-50/50 transition-all group bg-white shadow-sm"
         >
           <div className="flex items-center gap-3">
@@ -56,7 +56,7 @@ export default function RoleSelector({ roles }: { roles: string[] }) {
       {/* Opción MI PERFIL (Para Player) */}
       {roles.includes('player') && (
         <button 
-          onClick={() => router.push('/portal/dashboard')}
+          onClick={() => router.push('/portal/estado-cuenta')}
           className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-slate-50 hover:border-orange-500 hover:bg-orange-50/50 transition-all group bg-white shadow-sm"
         >
           <div className="flex items-center gap-3">

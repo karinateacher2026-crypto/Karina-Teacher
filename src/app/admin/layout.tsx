@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react' // Añadido useEffect
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, CreditCard, FileText, Inbox, BookOpen, LogOut, Menu, Timer, X, CalendarDays, CircleDollarSign} from 'lucide-react'
+import { LayoutDashboard, Users, CreditCard, FileText, Settings, Inbox, BookOpen, LogOut, Menu, Timer, X, CalendarDays, CircleDollarSign} from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { CLIENT_CONFIG } from '@/conf/clientConfig';
@@ -49,11 +49,12 @@ export default function AdminLayout({
     { name: 'Material didáctico', href: '/admin/material', icon: BookOpen },  // <--- NUEVA LÍNEA
     { name: 'Planificación', href: '/admin/planificacion', icon: CalendarDays }, // <--- NUEVO
     { name: 'Profes', href: '/admin/adminprofes', icon: Users }, // <-- AGREGÁ ESTA LÍNEA
-    { name: 'Categorias', href: '/admin/categories', icon: Users },
+    { name: 'Cursos', href: '/admin/categories', icon: Users },
     { name: 'Pagos', href: '/admin/payments', icon: CreditCard },
     { name: 'Cuotas', href: '/admin/fees', icon: FileText },
     { name: 'Bandeja de Entrada', href: '/admin/inbox', icon: Inbox },
     { name: 'Balance del Instituto', href: '/admin/expenses', icon: CircleDollarSign },
+    { name: 'Personalización', href: '/admin/personalizacion', icon: Settings },
   ]
 
   return (

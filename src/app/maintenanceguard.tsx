@@ -3,7 +3,6 @@ import { useEffect, useState, ReactNode } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { Hammer } from 'lucide-react'
 import { usePathname } from 'next/navigation'
-import { CLIENT_CONFIG } from '@/conf/clientConfig'
 
 export default function MaintenanceGuard({ children }: { children: ReactNode }) {
   const [isMaintenance, setIsMaintenance] = useState(false)
@@ -14,14 +13,15 @@ export default function MaintenanceGuard({ children }: { children: ReactNode }) 
     const checkStatusAndUser = async () => {
       try {
         // 1. Verificamos si el mantenimiento está activo en la base de datos
+        // OJO: Asegurate de que en Supabase el 'key' sea exactamente 'maintenance_mode'
         const { data: configData } = await supabase
           .from('system_config')
           .select('value')
           .eq('key', 'maintenance_mode')
           .single()
 
-        // Si no hay mantenimiento, apagamos el loading y dejamos pasar a todos
-        if (!configData?.value) {
+        // Si el valor NO es el texto 'true', apagamos el loading y dejamos pasar
+        if (configData?.value !== 'true') {
           setLoading(false)
           return
         }
@@ -44,7 +44,7 @@ export default function MaintenanceGuard({ children }: { children: ReactNode }) 
           .eq('id', session.user.id)
           .single()
 
-        // Verificamos si el rol incluye 'player'
+        // Verificamos si el array de roles incluye 'player'
         const isSocio = userData?.role?.includes('player')
 
         // Si ES socio, recién ahí le prendemos la pantalla de bloqueo
@@ -60,13 +60,14 @@ export default function MaintenanceGuard({ children }: { children: ReactNode }) 
     }
     
     checkStatusAndUser()
-  }, [pathname]) // Agregamos 'pathname' para que vuelva a chequear apenas la ruta cambia (ej: cuando terminan de loguearse)
+  }, [pathname])
 
   // Detectamos si estás corriendo la app en tu compu (modo local)
-  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  // const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
 
-  // Si sos vos probando en tu compu (localhost) O estás navegando por rutas /admin, te deja pasar siempre
-  if (pathname?.startsWith('/admin') || isLocalhost) return <>{children}</>
+  // TEMPORAL: Dejamos comentado isLocalhost para que lo puedas probar en tu compu.
+  // Si sos admin, siempre te deja pasar.
+  if (pathname?.startsWith('/admin')) return <>{children}</>
 
   // Mientras carga la decisión, muestra la app normal para no parpadear en blanco
   if (loading) return <>{children}</>
@@ -84,7 +85,7 @@ export default function MaintenanceGuard({ children }: { children: ReactNode }) 
           </h1>
           <div className="h-1.5 w-16 bg-yellow-400 mx-auto"></div>
           <p className="text-blue-100 font-bold text-lg leading-tight">
-            El portal de estudiantes de {CLIENT_CONFIG.name} volverá a estar en línea en unos minutos.
+            El portal de socios volverá a estar en línea en unos minutos.
           </p>
           <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.2em] pt-4 opacity-70">
             Mantenimiento Activo • 2026

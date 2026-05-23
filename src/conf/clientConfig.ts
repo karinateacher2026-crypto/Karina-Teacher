@@ -3,6 +3,7 @@
 export const CLIENT_CONFIG = {
   name: "Butterflies English Classes",
   shortName: "Butterflies English Classes",
+  acortadoname: "Butterflies",
   logoUrl: "/logo.jpg",
   alias_club:"probando",
   cbu_club:"0000000",

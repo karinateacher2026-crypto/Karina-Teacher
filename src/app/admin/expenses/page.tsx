@@ -16,8 +16,8 @@ export default function ExpensesPage() {
   const [totalIncomes, setTotalIncomes] = useState(0); // Este será Cuotas + Ingresos Extra
   const [loading, setLoading] = useState(true);
   const [filterRange, setFilterRange] = useState('este-mes');
+  const [methodFilter, setMethodFilter] = useState('Todos'); // <-- NUEVO ESTADO
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterMethod, setFilterMethod] = useState('todos');
   const [activeMembers, setActiveMembers] = useState(0);
   
   // Datos para el gráfico comparativo mensual del año
@@ -29,11 +29,11 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // --- INSERCIÓN 1: TIPO DE TRANSACCIÓN Y CATEGORÍAS ---
+ // --- INSERCIÓN 1: TIPO DE TRANSACCIÓN Y CATEGORÍAS ---
   const [modalType, setModalType] = useState<'egreso' | 'ingreso'>('egreso');
   
-  const categories = ['Librería', 'Tóner', 'Suscripciones', 'Seguro', 'Muebles', 'Arreglos', 'Monotributo', 'Insumos Limpieza', 'Sueldos', 'Otros'];
-  const incomeCategories = ['Otros'];
+  const [categories, setCategories] = useState<string[]>([]);
+  const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
   
   const currentCategories = modalType === 'egreso' ? categories : incomeCategories;
 
@@ -52,8 +52,21 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
   useEffect(() => {
     fetchData();
     fetchMonthlyYearlyData(); 
-  }, [filterRange, filterMethod]); // <--- Agregá filterMethod acá
-
+  }, [filterRange, methodFilter]); // <-- AGREGADO methodFilter ACÁ
+useEffect(() => {
+    const fetchCategoriasDinámicas = async () => {
+      const { data } = await supabase
+        .from('transaction_categories')
+        .select('name, type')
+        .order('name');
+        
+      if (data) {
+        setCategories(data.filter(c => c.type === 'expense').map(c => c.name));
+        setIncomeCategories(data.filter(c => c.type === 'income').map(c => c.name));
+      }
+    };
+    fetchCategoriasDinámicas();
+  }, []);
   const pieData = useMemo(() => {
     return categories.map(cat => {
       const total = expenses
@@ -79,22 +92,34 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
     
-    const { data: expData } = await supabase.from('expenses').select('amount, date').gte('date', startOfYear);
+    const { data: expData } = await supabase.from('expenses').select('amount, date, payment_method').gte('date', startOfYear);
     const { data: payData } = await supabase.from('payments').select('amount, created_at, method, status').gte('created_at', startOfYear);
-    const { data: incExtraData } = await supabase.from('incomes').select('amount, date').gte('date', startOfYear);
+    const { data: incExtraData } = await supabase.from('incomes').select('amount, date, payment_method').gte('date', startOfYear);
 
     const monthlyData = MONTHS.map((month, index) => {
-      const monthExpenses = expData?.filter(e => new Date(e.date).getUTCMonth() === index).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+      const monthExpenses = expData?.filter(e => 
+        new Date(e.date).getUTCMonth() === index &&
+        (methodFilter === 'Todos' || e.payment_method === methodFilter)
+      ).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
       
       const cuotasIncomes = payData?.filter(p => {
         const pDate = new Date(p.created_at);
         const isThisMonth = pDate.getUTCMonth() === index;
         const isValidTransfer = p.method === 'transfer' && p.status === 'approved';
         const isValidCash = p.method === 'cash' && p.status === 'completed';
-        return isThisMonth && (isValidTransfer || isValidCash);
+        
+        let matchMethod = false;
+        if (methodFilter === 'Efectivo') matchMethod = isValidCash;
+        else if (methodFilter === 'Transferencia') matchMethod = isValidTransfer;
+        else matchMethod = isValidTransfer || isValidCash;
+
+        return isThisMonth && matchMethod;
       }).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
 
-      const extrasIncomes = incExtraData?.filter(e => new Date(e.date).getUTCMonth() === index).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+      const extrasIncomes = incExtraData?.filter(e => 
+        new Date(e.date).getUTCMonth() === index &&
+        (methodFilter === 'Todos' || e.payment_method === methodFilter)
+      ).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
 
       return { name: month, ingresos: cuotasIncomes + extrasIncomes, egresos: monthExpenses };
     });
@@ -145,12 +170,17 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
       supabase.from('users').select('*', { count: 'exact', head: true }).eq('status', 'active').contains('role', ['player'])
     ]);
 
-    // --- INSERCIÓN: UNIFICACIÓN PARA LA TABLA ---
-    // Marcamos cada uno con su tipo para diferenciarlos en el listado
-    const egresosProcesados = (expensesRes.data || []).map(e => ({ ...e, type: 'egreso' }));
-    const ingresosProcesados = (incomesExtraRes.data || []).map(i => ({ ...i, type: 'ingreso' }));
+    // --- INSERCIÓN: UNIFICACIÓN PARA LA TABLA Y FILTRO ---
+    // Filtramos egresos e ingresos extra por Efectivo/Transferencia
+    const egresosProcesados = (expensesRes.data || [])
+      .filter(e => methodFilter === 'Todos' || e.payment_method === methodFilter)
+      .map(e => ({ ...e, type: 'egreso' }));
+      
+    const ingresosProcesados = (incomesExtraRes.data || [])
+      .filter(i => methodFilter === 'Todos' || i.payment_method === methodFilter)
+      .map(i => ({ ...i, type: 'ingreso' }));
     
-    // Unimos ambos y ordenamos por fecha para que la tabla sea cronológica
+    // Unimos ambos y ordenamos por fecha
     const todosLosMovimientos = [...egresosProcesados, ...ingresosProcesados].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
@@ -158,17 +188,18 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
     setExpenses(todosLosMovimientos);
     setActiveMembers(activeMembersRes?.count || 0);
 
-   // --- CÁLCULO DE RECAUDACIÓN TOTAL (Cuotas + Extras) ---
+    // --- CÁLCULO DE RECAUDACIÓN TOTAL (Cuotas + Extras) ---
+    // Filtramos las cuotas traduciendo el inglés al español
     let totalCobradas = 0;
     if (paymentsRes.data) {
       totalCobradas = paymentsRes.data
         .filter(p => {
-          const isApprovedTransfer = p.method === 'transfer' && p.status === 'approved';
-          const isCompletedCash = p.method === 'cash' && p.status === 'completed';
-          
-          if (filterMethod === 'efectivo') return isCompletedCash;
-          if (filterMethod === 'transferencia') return isApprovedTransfer;
-          return isApprovedTransfer || isCompletedCash;
+           const isTransfer = p.method === 'transfer' && p.status === 'approved';
+           const isCash = p.method === 'cash' && p.status === 'completed';
+           
+           if (methodFilter === 'Efectivo') return isCash;
+           if (methodFilter === 'Transferencia') return isTransfer;
+           return isTransfer || isCash; // 'Todos'
         })
         .reduce((acc, curr) => acc + Number(curr.amount), 0);
     }
@@ -176,17 +207,13 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
     let totalExtras = 0;
     if (incomesExtraRes.data) {
       totalExtras = incomesExtraRes.data
-        .filter(i => {
-          if (filterMethod === 'efectivo') return i.payment_method === 'Efectivo';
-          if (filterMethod === 'transferencia') return i.payment_method === 'Transferencia';
-          return true;
-        })
+        .filter(i => methodFilter === 'Todos' || i.payment_method === methodFilter)
         .reduce((acc, curr) => acc + Number(curr.amount), 0);
     }
 
     setTotalIncomes(totalCobradas + totalExtras);
     setLoading(false);
-  };;
+  };
 
   const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,30 +283,22 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
     document.body.removeChild(link);
   };
 
- // 1. Filtramos las filas de la tabla de abajo por búsqueda Y modalidad
-  const filteredExpenses = expenses.filter(e => {
-    const matchSearch = e.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchMethod = 
-      filterMethod === 'todos' ? true : 
-      filterMethod === 'efectivo' ? e.payment_method === 'Efectivo' : 
-      e.payment_method === 'Transferencia';
-      
-    return matchSearch && matchMethod;
-  });
+ // 1. Esto se mantiene igual para filtrar las filas de la tabla de abajo
+  const filteredExpenses = expenses.filter(e => e.category.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // 2. Usamos el arreglo YA FILTRADO para que el KPI rojo también reaccione al selector
-  const totalExpenses = filteredExpenses
+  // 2. CORRECCIÓN: Usamos 'expenses' directamente en lugar de 'filteredExpenses'
+  // Esto hace que el KPI de la tarjeta roja sea fijo según el calendario
+  const totalExpenses = expenses
     .filter(e => e.type === 'egreso')
     .reduce((acc, curr) => acc + Number(curr.amount), 0);
 
-  // 3. El balance neto se recalcula automáticamente
+  // 3. El balance ahora también es fijo y real al usar el totalExpenses corregido
   const balance = totalIncomes - totalExpenses;
 
-  // Funciones para abrir modales seteando el tipo
-  const openAddModal = (type: 'ingreso' | 'egreso') => {
+ const openAddModal = (type: 'ingreso' | 'egreso') => {
     setModalType(type);
     setNewExpense({
-      category: type === 'egreso' ? categories[0] : incomeCategories[0],
+      category: type === 'egreso' ? (categories[0] || '') : (incomeCategories[0] || ''),
       amount: '',
       date: new Date().toISOString().split('T')[0],
       payment_method: 'Transferencia',
@@ -295,7 +314,7 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tighter italic uppercase">Balance financiero</h1>
-          <p className="text-slate-500 text-sm font-medium mt-1">Control financiero y balance neto de {CLIENT_CONFIG.name}</p>
+          <p className="text-slate-500 text-sm font-medium mt-1">Control financiero y balance neto del club {CLIENT_CONFIG.name}</p>
         </div>
         <div className="flex gap-3">
           <button onClick={exportToCSV} className="bg-[#00b341] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-[#009938] transition-all shadow-sm active:scale-95 text-xs">
@@ -344,7 +363,7 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
 
         <div className="bg-white p-7 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-start">
           <div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Estudiantes Activos</p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Socios Activos</p>
             <h2 className="text-2xl font-bold text-slate-800 italic">{activeMembers}</h2>
             <p className="text-blue-500 text-xs font-bold mt-4 italic">Total en sistema</p>
           </div>
@@ -415,15 +434,17 @@ const [deleteModal, setDeleteModal] = useState<{show: boolean, id: string | null
             <option value="año-pasado">Año Pasado</option>
           </select>
         </div>
-        {/* NUEVO SELECTOR DE MODALIDAD 👇 */}
+
+        {/* --- NUEVO FILTRO DE MÉTODO DE PAGO --- */}
         <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 w-full md:w-auto">
           <CreditCard size={18} className="text-slate-400" />
-          <select value={filterMethod} onChange={(e) => setFilterMethod(e.target.value)} className="bg-transparent font-bold text-xs text-slate-600 outline-none cursor-pointer uppercase tracking-wider">
-            <option value="todos">Todos los métodos</option>
-            <option value="efectivo">Solo Efectivo</option>
-            <option value="transferencia">Solo Transferencia</option>
+          <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="bg-transparent font-bold text-xs text-slate-600 outline-none cursor-pointer uppercase tracking-wider">
+            <option value="Todos">Todos los medios</option>
+            <option value="Efectivo">Solo Efectivo (Caja Física)</option>
+            <option value="Transferencia">Solo Transferencias (Banco)</option>
           </select>
         </div>
+
         <div className="flex-grow relative w-full">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 

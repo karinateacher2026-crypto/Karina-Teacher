@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback} from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabaseClient' // Ajustá si es necesario
 import { 
@@ -19,6 +19,7 @@ export default function Home() {
   const [materials, setMaterials] = useState<any[]>([])
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [loadingCampus, setLoadingCampus] = useState(true)
+  const [config, setConfig] = useState<any>({ whatsapp: '', instagram: '' });
 
   // ==========================================
   // ESTADOS: ANIMACIÓN DEL HERO
@@ -53,16 +54,11 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [actionWords.length])
 
-  // Efecto para cargar los datos de Supabase
-  useEffect(() => {
-    fetchPublicCampusData()
-  }, [])
-
-  const fetchPublicCampusData = async () => {
+  // 1. Declaramos las funciones de carga usando useCallback 
+  // para que sean estables y no causen bucles infinitos
+  const fetchPublicCampusData = useCallback(async () => {
     try {
       setLoadingCampus(true);
-      
-      // Traemos los datos
       const { data: cats, error: catError } = await supabase
         .from('categories')
         .select(`id, name, deportes(name), sedes(name)`);
@@ -77,28 +73,36 @@ export default function Home() {
       if (matError) throw matError;
 
       if (cats && cats.length > 0) {
-        // 1. Filtramos los particulares
         const publicCats = cats.filter(c => !c.name.toLowerCase().includes('particular'));
-        
-        // 2. FORZAMOS EL ORDEN POR ID (1, 2, 3...) EN EL FRONTEND
-        // Esto garantiza que Kids 1 (ID 1) vaya arriba de todo sin importar qué diga la BD
         const sortedCats = publicCats.sort((a, b) => a.id - b.id);
-        
         setCategories(sortedCats);
-        
-        // 3. Activamos la primera (Kids 1)
-        if (sortedCats.length > 0) {
-          setActiveCategory(sortedCats[0].id.toString());
-        }
+        if (sortedCats.length > 0) setActiveCategory(sortedCats[0].id.toString());
       }
-      
       if (mats) setMaterials(mats);
     } catch (error) {
       console.error("Error cargando el campus:", error);
     } finally {
       setLoadingCampus(false);
     }
-  }
+  }, []);
+
+  const fetchConfig = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('system_config')
+      .select('key, value')
+      .in('key', ['telefono', 'instagram']);
+    
+    if (!error && data) {
+      const configMap = data.reduce((acc, item) => ({ ...acc, [item.key]: item.value }), {});
+      setConfig(configMap);
+    }
+  }, []);
+
+  // 2. Un único useEffect para disparar ambas cargas al montar el componente
+  useEffect(() => {
+    fetchPublicCampusData();
+    fetchConfig();
+  }, [fetchPublicCampusData, fetchConfig]);
 
   
   // Utilidades para formatear el campus
@@ -153,13 +157,13 @@ export default function Home() {
       
       {/* BOTÓN WHATSAPP */}
       <a 
-        href={`https://wa.me/${CLIENT_CONFIG.social?.whatsapp || CLIENT_CONFIG.contact?.phone}?text=Hola!%20Quisiera%20pedir%20informaci%C3%B3n%20sobre%20las%20clases%20de%20ingl%C3%A9s.`}
-        target="_blank" 
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-[100] bg-green-500 text-white p-4 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:bg-green-600 hover:scale-110 transition-all duration-300 flex items-center justify-center group"
-      >
-        <Phone size={28} className="group-hover:animate-bounce" />
-      </a>
+  href={`https://wa.me/${config.telefono}?text=Hola!%20Quisiera%20pedir%20informaci%C3%B3n%20sobre%20las%20clases%20de%20ingl%C3%A9s.`}
+  target="_blank" 
+  rel="noopener noreferrer"
+  className="fixed bottom-6 right-6 z-[100] bg-green-500 text-white p-4 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:bg-green-600 hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+>
+  <Phone size={28} className="group-hover:animate-bounce" />
+</a>
 
       {/* NAVBAR MODERNIZADO */}
       <nav className="flex items-center justify-between px-6 py-3 bg-white/80 backdrop-blur-md text-indigo-950 shadow-sm sticky top-0 z-50 border-b border-gray-100">
@@ -193,7 +197,7 @@ export default function Home() {
         
         {/* Imágenes de fondo difuminadas */}
         <div className="absolute inset-0 flex w-full h-full opacity-30">
-          <img src="fotopagina1.jpg" alt="Fondo" className="w-full h-full object-cover" />
+          <img src={CLIENT_CONFIG.logoUrl} alt="Fondo" className="w-full h-full object-cover" />
         </div>
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a1a]/80 via-[#0a0a1a]/60 to-[#0a0a1a] z-10" />
         
@@ -413,7 +417,7 @@ export default function Home() {
         <h2 className="text-3xl md:text-5xl font-black text-gray-900 mb-6 tracking-tight">Ready to start?</h2>
         <p className="text-gray-500 mb-10 text-lg max-w-xl mx-auto">Join our community and start speaking English from your very first class.</p>
         <a 
-          href={`https://wa.me/${CLIENT_CONFIG.social?.whatsapp || CLIENT_CONFIG.contact?.phone}?text=Hi!%20I%20would%20like%20more%20information.`}
+          href={`https://wa.me/${config.telefono}?text=Hi!%20I%20would%20like%20more%20information.`}
           target="_blank"
           rel="noreferrer"
           className="px-8 py-4 rounded-xl text-lg font-bold transition-all bg-white text-indigo-950 hover:bg-gray-100 flex items-center justify-center gap-2 group shadow-sm border border-gray-200"
@@ -436,7 +440,10 @@ An English learning space for all ages, levels and learning journeys.
             <h4 className="font-bold uppercase text-xs tracking-widest text-gray-500 mb-4">Contact</h4>
             <ul className="space-y-3 text-sm text-gray-300">
               <li className="flex items-center gap-2"><MapPin size={16} className="text-indigo-400"/> Mar del Plata, Argentina</li>
-              <li className="flex items-center gap-2"><Phone size={16} className="text-indigo-400"/> +{CLIENT_CONFIG.contact?.phone || CLIENT_CONFIG.social?.whatsapp}</li>
+              <li className="flex items-center gap-2">
+  <Phone size={16} className="text-indigo-400"/> 
+  {config.telefono}
+</li>
             </ul>
           </div>
           
