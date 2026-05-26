@@ -7,27 +7,31 @@ import { Loader2, ChevronLeft, ChevronRight, Tag, Search } from 'lucide-react';
 
 export default function AsistenciaPage() {
   const [user, setUser] = useState<any>(null);
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const [scheduledPractices, setScheduledPractices] = useState<any[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
 
-  // 1. Buscamos el usuario logueado
+  // 1. Buscamos el usuario logueado y TODAS sus categorías (puede tener varios idiomas)
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: userData } = await supabase.from('users').select('*').eq('id', session.user.id).single();
         if (userData) {
-          // Intentamos obtener la categoría si no está en el objeto user
-          if (!userData.category_id) {
-            const { data: catData } = await supabase
-              .from('user_categories')
-              .select('category_id')
-              .eq('user_id', userData.id)
-              .maybeSingle();
-            if (catData) userData.category_id = catData.category_id;
-          }
+          const { data: catData } = await supabase
+            .from('user_categories')
+            .select('category_id, categories(id, name)')
+            .eq('user_id', userData.id);
+          const userCats = catData?.map((c: any) => ({
+            id: c.category_id,
+            name: c.categories?.name || `Categoría ${c.category_id}`
+          })) || [];
+          userData.category_ids = userCats.map(c => c.id);
+          setCategories(userCats);
+          if (userCats.length > 0) setSelectedCategoryId(userCats[0].id);
           setUser(userData);
         }
       }
@@ -36,15 +40,15 @@ export default function AsistenciaPage() {
     fetchUser();
   }, []);
 
-  // 2. Fetch de Asistencia, Prácticas y Notas
+  // 2. Fetch de Asistencia, Prácticas y Notas (para todos los idiomas del alumno)
   useEffect(() => {
     const fetchAttendanceAndPractices = async () => {
-      if (!user?.id || !user?.category_id) return;
+      if (!user?.id || !user?.category_ids?.length) return;
 
       try {
         setCalendarLoading(true);
         const [practicesRes, attendanceRes, gradesRes] = await Promise.all([
-          supabase.from('practices').select('id, scheduled_date, observations, event_type, title, category_id').eq('category_id', user.category_id),
+          supabase.from('practices').select('id, scheduled_date, observations, event_type, title, category_id').in('category_id', user.category_ids),
           supabase.from('attendance').select('practice_id, status').eq('player_id', user.id),
           supabase.from('grades').select('practice_id, score_writing, score_speaking').eq('player_id', user.id)
         ]);
@@ -69,7 +73,7 @@ export default function AsistenciaPage() {
     };
     
     fetchAttendanceAndPractices();
-  }, [user?.id, user?.category_id]);
+  }, [user?.id, user?.category_ids?.join(',')]);
 
   const getTodayArgentina = () => {
     return new Intl.DateTimeFormat('en-CA', {
@@ -93,7 +97,9 @@ export default function AsistenciaPage() {
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const practicesForDay = scheduledPractices.filter(p => p.scheduled_date.startsWith(dayStr));
+      const practicesForDay = scheduledPractices
+        .filter(p => !selectedCategoryId || p.category_id === selectedCategoryId)
+        .filter(p => p.scheduled_date.startsWith(dayStr));
       const isPast = dayStr < todayStr;
       const isToday = dayStr === todayStr;
 
@@ -151,11 +157,61 @@ export default function AsistenciaPage() {
 
   return (
     <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 pb-10 text-left w-full">
-      <div className="mb-6 mt-2 text-left px-4 md:px-0">
-        <h2 className="text-2xl md:text-3xl font-black text-[#1e1b4b] uppercase tracking-tighter">Mi Asistencia</h2>
-        <p className="text-slate-500 text-sm">Calendario de clases y registro de presencias.</p>
-      </div>
-      
+      {(() => {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const dateLimitStr = thirtyDaysAgo.toISOString().split('T')[0];
+        const recentWithRecord = scheduledPractices
+          .filter(p => !selectedCategoryId || p.category_id === selectedCategoryId)
+          .filter(p => p.scheduled_date.slice(0, 10) >= dateLimitStr)
+          .filter(p => attendanceData.some(a => a.practice_id === p.id));
+        const total = recentWithRecord.length;
+        const presentes = recentWithRecord.filter(p =>
+          attendanceData.find(a => a.practice_id === p.id)?.status === 'present'
+        ).length;
+        const porc = total > 0 ? Math.round((presentes / total) * 100) : null;
+
+        return (
+          <div className="mb-6 mt-2 text-left px-4 md:px-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-2xl md:text-3xl font-black text-[#1e1b4b] uppercase tracking-tighter">Mi Asistencia</h2>
+              {porc !== null ? (
+                <span className={`px-3 py-1.5 rounded-2xl font-black text-sm border ${
+                  porc >= 80
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                    : 'bg-orange-50 text-orange-600 border-orange-100'
+                }`}>
+                  {porc}% <span className="font-bold text-[10px] opacity-70">últimos 30 días</span>
+                </span>
+              ) : !calendarLoading && (
+                <span className="px-3 py-1.5 rounded-2xl font-black text-sm bg-slate-50 text-slate-400 border border-slate-100">
+                  Sin datos
+                </span>
+              )}
+            </div>
+            <p className="text-slate-500 text-sm">Calendario de clases y registro de presencias.</p>
+          </div>
+        );
+      })()}
+
+      {categories.length > 1 && (
+        <div className="flex gap-2 px-4 md:px-0 mb-4 flex-wrap">
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategoryId(cat.id)}
+              className={`px-4 py-2 rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all ${
+                selectedCategoryId === cat.id
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:border-indigo-300'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="bg-white rounded-[32px] md:rounded-[40px] shadow-xl border border-slate-100 overflow-hidden mx-4 md:mx-0">
         <div className="p-4 md:p-8 bg-slate-50 flex justify-between items-center border-b">
             <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 hover:bg-white rounded-full"><ChevronLeft/></button>

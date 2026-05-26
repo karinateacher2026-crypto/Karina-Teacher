@@ -86,54 +86,48 @@ const fetchAttendance = async () => {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const dateLimitStr = thirtyDaysAgo.toISOString().split('T')[0];
 
-  // 1. Traer todas las asistencias de los ultimos 30 dias
+  // 1. Filtrar por scheduled_date en practices (no por created_at en attendance)
+  const { data: recentPractices } = await supabase
+    .from('practices')
+    .select('id, categories(deporte_id)')
+    .gte('scheduled_date', dateLimitStr);
+
+  if (!recentPractices || recentPractices.length === 0) { setPlayerStats({}); return; }
+
+  const practiceIds = recentPractices.map((p: any) => p.id);
+
+  // 2. Traer asistencias de esas practicas
   const { data: attData } = await supabase
     .from('attendance')
     .select('player_id, status, practice_id')
-    .gte('created_at', dateLimitStr);
+    .in('practice_id', practiceIds);
 
-  if (!attData || attData.length === 0) {
-    setPlayerStats({});
-    return;
-  }
+  if (!attData || attData.length === 0) { setPlayerStats({}); return; }
 
-  // 2. Extraer practice_ids unicos para buscar sus deportes
-  const practiceIds = Array.from(new Set(attData.map(a => a.practice_id).filter(Boolean)));
-
-  // 3. Traer las practicas con su categoria y deporte asociado (evitando N+1 queries)
-  const { data: practicesData } = await supabase
-    .from('practices')
-    .select(`
-      id,
-      categories (
-        deporte_id
-      )
-    `)
-    .in('id', practiceIds);
-
-  // Mapear practice_id -> deporte_id
-  const practiceToDeporte: Record<number, number | null> = {};
-  practicesData?.forEach((p: any) => {
+  // 3. Mapear practice_id -> deporte_id
+  const practiceToDeporte: Record<string, number | null> = {};
+  recentPractices.forEach((p: any) => {
     practiceToDeporte[p.id] = p.categories?.deporte_id || null;
   });
 
-  // 4. Agrupar estadisticas por player_id y luego por deporte_id
-  // Estructura: stats[player_id][deporte_id] = { present: X, total: Y }
-  const stats: Record<string, Record<string, { present: number, total: number }>> = {};
-
+  // 4. Denominador: prácticas únicas con asistencia tomada por deporte
+  const deportePracticeSet: Record<string, Set<string>> = {};
   attData.forEach(row => {
-    const deporteId = row.practice_id ? practiceToDeporte[row.practice_id] : null;
-    if (!deporteId) return; // Si no hay deporte asociado, ignoramos
+    const dId = practiceToDeporte[row.practice_id]?.toString();
+    if (!dId) return;
+    if (!deportePracticeSet[dId]) deportePracticeSet[dId] = new Set();
+    deportePracticeSet[dId].add(row.practice_id);
+  });
 
-    const dIdStr = deporteId.toString();
-
+  // 5. Stats: present por alumno, total = denominador por deporte (igual para todos)
+  const stats: Record<string, Record<string, { present: number, total: number }>> = {};
+  attData.forEach(row => {
+    const dId = practiceToDeporte[row.practice_id]?.toString();
+    if (!dId) return;
     if (!stats[row.player_id]) stats[row.player_id] = {};
-    if (!stats[row.player_id][dIdStr]) stats[row.player_id][dIdStr] = { present: 0, total: 0 };
-
-    stats[row.player_id][dIdStr].total++;
-    if (row.status === 'present') {
-      stats[row.player_id][dIdStr].present++;
-    }
+    if (!stats[row.player_id][dId])
+      stats[row.player_id][dId] = { present: 0, total: deportePracticeSet[dId]?.size || 0 };
+    if (row.status === 'present') stats[row.player_id][dId].present++;
   });
 
   setPlayerStats(stats);

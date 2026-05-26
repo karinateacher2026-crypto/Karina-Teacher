@@ -11,6 +11,7 @@ export default function DivisionesPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [allPlayers, setAllPlayers] = useState<any[]>([]);
   const [playerStats, setPlayerStats] = useState<Record<string, any[]>>({});
+  const [categoryDoneCount, setCategoryDoneCount] = useState<Record<number, number>>({});
   const [initialLoading, setInitialLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -71,6 +72,7 @@ export default function DivisionesPage() {
         .gte('scheduled_date', dateLimitStr);
 
       const pStats: any = {};
+      const practicasConAsistencia: Record<number, Set<string>> = {};
 
       if (recentPractices && recentPractices.length > 0) {
         const recentIds = recentPractices.map(p => p.id);
@@ -85,14 +87,26 @@ export default function DivisionesPage() {
           const realCategoryId = practiceInfo?.category_id;
 
           if (!pStats[row.player_id]) pStats[row.player_id] = [];
-          pStats[row.player_id].push({ 
-            practice_id: row.practice_id, 
+          pStats[row.player_id].push({
+            practice_id: row.practice_id,
             status: row.status,
-            category_id: realCategoryId 
+            category_id: realCategoryId
           });
+
+          if (realCategoryId) {
+            if (!practicasConAsistencia[realCategoryId]) practicasConAsistencia[realCategoryId] = new Set();
+            practicasConAsistencia[realCategoryId].add(row.practice_id);
+          }
         });
       }
+
+      const catDoneCount: Record<number, number> = {};
+      Object.entries(practicasConAsistencia).forEach(([catId, set]) => {
+        catDoneCount[Number(catId)] = set.size;
+      });
+
       setPlayerStats(pStats);
+      setCategoryDoneCount(catDoneCount);
 
     } catch (err) {
       console.error("Error cargando datos:", err);
@@ -150,9 +164,10 @@ export default function DivisionesPage() {
                 
                 // 2. FILTRO MAESTRO: Solo tomamos las asistencias que pertenecen a ESTA categoría
                 const filteredRecs = allRecs.filter((r: any) => r.category_id === cat.id);
-                
+
                 // 3. Calculamos el porcentaje
-                const totalClases = filteredRecs.length;
+                // Denominador = prácticas únicas con asistencia tomada en esta categoría (últimos 30 días)
+                const totalClases = categoryDoneCount[cat.id] || 0;
                 const presentes = filteredRecs.filter((r: any) => r.status === 'present').length;
                 const porc = totalClases > 0 ? Math.round((presentes / totalClases) * 100) : 0;
 

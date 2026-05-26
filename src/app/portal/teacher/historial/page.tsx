@@ -11,7 +11,9 @@ export default function TeacherHistorialPage() {
   // --- ESTADOS EXACTOS DEL DASHBOARD ---
   const [teacher, setTeacher] = useState({ id: '', name: '' });
   const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(() => {
+    try { const s = sessionStorage.getItem('teacherCategoryId'); return s ? Number(s) : null; } catch { return null; }
+  });
   const [allPlayers, setAllPlayers] = useState<any[]>([]);
   const [monthPractices, setMonthPractices] = useState<any[]>([]);
   const [historySummary, setHistorySummary] = useState<Record<number, {present: number, absent: number}>>({});
@@ -68,7 +70,10 @@ export default function TeacherHistorialPage() {
       
       const myCategoryIds = profeCats.map(c => c.id);
       const currentId = selectedCategoryId || profeCats[0]?.id;
-      if (!selectedCategoryId) setSelectedCategoryId(currentId);
+      if (!selectedCategoryId) {
+        setSelectedCategoryId(currentId);
+        sessionStorage.setItem('teacherCategoryId', String(currentId));
+      }
 
       const { data: relData, error: relError } = await supabase
         .from('user_categories')
@@ -90,15 +95,10 @@ export default function TeacherHistorialPage() {
 
       setAllPlayers(players);
 
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const dateLimitStr = thirtyDaysAgo.toISOString().split('T')[0];
-
       const { data: allPractices } = await supabase
         .from('practices')
         .select('*')
         .in('category_id', myCategoryIds)
-        .gte('scheduled_date', dateLimitStr)
         .order('scheduled_date', { ascending: true });
 
       setMonthPractices(allPractices?.filter(p => p.category_id === currentId) || []);
@@ -225,7 +225,7 @@ export default function TeacherHistorialPage() {
         
         <select 
           value={selectedCategoryId || ''} 
-          onChange={(e) => setSelectedCategoryId(Number(e.target.value))} 
+          onChange={(e) => { const id = Number(e.target.value); setSelectedCategoryId(id); sessionStorage.setItem('teacherCategoryId', String(id)); }}
           className="w-full md:w-auto bg-white border-2 border-slate-200 px-6 py-3 rounded-2xl font-bold text-xs shadow-sm outline-none"
         >
           {categories.map(c => (

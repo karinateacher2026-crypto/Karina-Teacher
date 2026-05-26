@@ -10,7 +10,9 @@ export default function TeacherCalendarioPage() {
   
   // 1. ESTADOS EXTRAÍDOS PARA EL CALENDARIO
   const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(() => {
+    try { const s = sessionStorage.getItem('teacherCategoryId'); return s ? Number(s) : null; } catch { return null; }
+  });
   const [monthPractices, setMonthPractices] = useState<any[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [initialLoading, setInitialLoading] = useState(true);
@@ -64,7 +66,10 @@ export default function TeacherCalendarioPage() {
       
       const myCategoryIds = profeCats.map(c => c.id);
       const currentId = selectedCategoryId || profeCats[0]?.id;
-      if (!selectedCategoryId) setSelectedCategoryId(currentId);
+      if (!selectedCategoryId) {
+        setSelectedCategoryId(currentId);
+        sessionStorage.setItem('teacherCategoryId', String(currentId));
+      }
 
       // Traemos las prácticas de los últimos 30 días en adelante
       const thirtyDaysAgo = new Date();
@@ -189,7 +194,7 @@ export default function TeacherCalendarioPage() {
         {/* SELECTOR DE CURSO */}
         <select 
           value={selectedCategoryId || ''} 
-          onChange={(e) => setSelectedCategoryId(Number(e.target.value))} 
+          onChange={(e) => { const id = Number(e.target.value); setSelectedCategoryId(id); sessionStorage.setItem('teacherCategoryId', String(id)); }}
           className="w-full md:w-auto bg-white border-2 border-slate-200 px-6 py-3 rounded-2xl font-bold text-xs shadow-sm outline-none"
         >
           {categories.map(c => (
