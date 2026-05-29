@@ -822,7 +822,7 @@ const exportToExcel = () => {
                })).filter(s => s.id && s.name).map(s => JSON.stringify(s)))).map(s => JSON.parse(s));
 
                if (userSports.length === 0) {
-                 return <div className="flex-1 p-2 text-center text-[10px] text-gray-400 font-bold uppercase">Sin Deporte</div>;
+                 return <div className="flex-1 p-2 text-center text-[10px] text-gray-400 font-bold uppercase">Sin Idioma</div>;
                }
 
                return userSports.map((sport: any) => {
@@ -969,7 +969,7 @@ const exportToExcel = () => {
         })).filter(s => s.id && s.name).map(s => JSON.stringify(s)))).map(s => JSON.parse(s));
 
         if (userSports.length === 0) {
-          return <div className="flex-1 text-center text-[10px] text-gray-400 font-bold uppercase p-1">Sin Deporte</div>;
+          return <div className="flex-1 text-center text-[10px] text-gray-400 font-bold uppercase p-1">Sin Idioma</div>;
         }
 
         return userSports.map((sport: any) => {
