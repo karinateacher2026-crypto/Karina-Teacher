@@ -105,6 +105,7 @@ export default function AdminLayout({
               <Link
                 key={item.name}
                 href={item.href}
+                prefetch={false}  // <--- ¡ESTA ES LA LÍNEA MÁGICA QUE FALTA!
                 onClick={() => setIsMobileMenuOpen(false)} // Cierra el menú al clickear en móvil
                 className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${
                   isActive
