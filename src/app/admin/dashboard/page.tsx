@@ -116,40 +116,54 @@ export default function AdminDashboard() {
         }
     }
 
+    // SI HAY FILTROS PERO NINGÚN USUARIO CUMPLE, CORTAMOS ACÁ Y NO MOLESTAMOS A LA DB
+    if (isFilterActive && validUserIds.length === 0) {
+        setStats({ revenue: 0, debt: 0, debtorCount: 0, topDebtors: [] })
+        setRecentPayments([])
+        setLoading(false)
+        return
+    }
+
+    // 🚀 CONSULTA ÚNICA UNIFICADA Y BLINDADA CON LÍMITE DE FECHA
     let query = supabase.from('payments')
-      .select('user_id, amount, method, status, date, users(name)')
+      .select('id, user_id, amount, method, status, date, users(name)')
       .gte('date', startDate.toISOString())
       .lte('date', endDate.toISOString())
 
-    if (isFilterActive) {
-        if (validUserIds.length === 0) {
-            setStats({ revenue: 0, debt: 0, debtorCount: 0, topDebtors: [] })
-            setRecentPayments([])
-            setLoading(false)
-            return
-        }
+    // Si el filtro arroja menos de 200 usuarios, usamos .in (es súper rápido). 
+    // Si son muchísimos, traemos el mes y filtramos en JS para que la URL no explote.
+    if (isFilterActive && validUserIds.length < 200) {
         query = query.in('user_id', validUserIds)
     }
 
-    const { data: movements } = await query
+    const { data: movements, error } = await query
+    if (error) console.error("Error cargando pagos:", error)
 
+    let filteredMovements = movements || [];
+
+    // Filtro en JS como respaldo si el array era gigantesco (protección extra)
+    if (isFilterActive && validUserIds.length >= 200) {
+        const validSet = new Set(validUserIds);
+        filteredMovements = filteredMovements.filter(m => validSet.has(m.user_id));
+    }
+
+    // PROCESAMIENTO MATEMÁTICO EN MEMORIA
     let filteredRevenue = 0;
     let periodDebt = 0;
     let debtors = 0;
     const debtorList: {name: string, balance: number}[] = [];
     
-    if (movements && movements.length > 0) {
+    if (filteredMovements.length > 0) {
       const balanceMap = new Map<string, {name: string, balance: number}>();
       
-      movements.forEach(m => {
+      filteredMovements.forEach(m => {
         if (m.status === 'pending' || m.status === 'rejected') return;
-
-        const user = m.users as any;
 
         if (m.amount > 0 && (m.method === 'cash' || m.method === 'transfer')) {
             filteredRevenue += m.amount;
         }
 
+        const user = m.users as any;
         const currentData = balanceMap.get(m.user_id) || { name: user?.name || 'Socio', balance: 0 };
         balanceMap.set(m.user_id, { ...currentData, balance: currentData.balance + m.amount });
       });
@@ -167,22 +181,14 @@ export default function AdminDashboard() {
         .sort((a, b) => a.balance - b.balance)
         .slice(0, 5);
 
-    let recentQuery = supabase.from('payments')
-      .select('*, users(name)')
-      .gt('amount', 0)
-      .in('method', ['cash', 'transfer'])
-      .in('status', ['completed', 'approved'])
-      .order('date', { ascending: false })
-      .limit(5)
-      
-    if (isFilterActive && validUserIds.length > 0) {
-      recentQuery = recentQuery.in('user_id', validUserIds)
-    }
-
-    const { data: recent } = await recentQuery
+    // 🚀 REEMPLAZO DE LA 2DA CONSULTA LENTA: Extraemos los recientes del mismo paquete de datos
+    const recent = filteredMovements
+        .filter(m => m.amount > 0 && ['cash', 'transfer'].includes(m.method) && ['completed', 'approved'].includes(m.status))
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5);
 
     setStats({ revenue: filteredRevenue, debt: periodDebt, debtorCount: debtors, topDebtors })
-    setRecentPayments(recent || [])
+    setRecentPayments(recent)
     setLoading(false)
   }
 

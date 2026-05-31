@@ -53,19 +53,24 @@ export default function AdminPlanner() {
 
   const loadData = async () => {
     try {
-      const { data: sedesData } = await supabase.from('sedes').select('*').order('name');
-      if (sedesData) setSedes(sedesData);
+      // Disparamos las 3 consultas AL MISMO TIEMPO para máxima velocidad
+      // sin recortar el historial, traemos todas las clases.
+      const [sedesRes, deportesRes, practicesRes] = await Promise.all([
+        supabase.from('sedes').select('*').order('name'),
+        supabase.from('deportes').select('*').order('name'),
+        supabase
+          .from('practices')
+          .select('*, categories(id, name, gender, sede_id, deporte_id, sedes(name), deportes(name))')
+          .order('scheduled_date', { ascending: true }) // <--- SIN LÍMITE DE FECHA
+      ]);
 
-      const { data: deportesData } = await supabase.from('deportes').select('*').order('name');
-      if (deportesData) setDeportes(deportesData);
+      // Guardamos los resultados si no hubo errores
+      if (sedesRes.data) setSedes(sedesRes.data);
+      if (deportesRes.data) setDeportes(deportesRes.data);
       
-      const { data: pracData, error } = await supabase
-        .from('practices')
-        .select('*, categories(id, name, gender, sede_id, deporte_id, sedes(name), deportes(name))')
-        .order('scheduled_date', { ascending: true });
-      
-      if (error) throw error;
-      if (pracData) setExistingPractices(pracData);
+      if (practicesRes.error) throw practicesRes.error;
+      if (practicesRes.data) setExistingPractices(practicesRes.data);
+
     } catch (err) {
       console.error("Error al cargar datos:", err);
     }
