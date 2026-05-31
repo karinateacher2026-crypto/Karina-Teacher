@@ -45,10 +45,18 @@ export default function AsistenciaPage() {
     const fetchAttendanceAndPractices = async () => {
       if (!user?.id || !user?.category_ids?.length) return;
 
-      try {
+     try {
         setCalendarLoading(true);
+
+        // 1. ESCUDO: Verificamos si el usuario realmente tiene categorías asignadas
+        const tieneCategorias = user.category_ids && user.category_ids.length > 0 && user.category_ids[0] !== null;
+
         const [practicesRes, attendanceRes, gradesRes] = await Promise.all([
-          supabase.from('practices').select('id, scheduled_date, observations, event_type, title, category_id').in('category_id', user.category_ids),
+          // 2. Si tiene categorías hacemos la consulta real. Si no, devolvemos un array vacío sin tocar Supabase.
+          tieneCategorias 
+            ? supabase.from('practices').select('id, scheduled_date, observations, event_type, title, category_id').in('category_id', user.category_ids)
+            : Promise.resolve({ data: [], error: null }),
+            
           supabase.from('attendance').select('practice_id, status').eq('player_id', user.id),
           supabase.from('grades').select('practice_id, score_writing, score_speaking').eq('player_id', user.id)
         ]);
