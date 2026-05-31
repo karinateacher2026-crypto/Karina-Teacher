@@ -30,7 +30,7 @@ export default function AdminLayout({
       }
     }
     checkUser()
-  }, [router])
+  }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()

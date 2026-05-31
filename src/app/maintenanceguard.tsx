@@ -11,6 +11,7 @@ export default function MaintenanceGuard({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     const checkStatusAndUser = async () => {
+      if (pathname?.startsWith('/admin')) { setLoading(false); return; }
       try {
         // 1. Verificamos si el mantenimiento está activo en la base de datos
         // OJO: Asegurate de que en Supabase el 'key' sea exactamente 'maintenance_mode'
