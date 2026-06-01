@@ -94,6 +94,7 @@ export default function TeacherLayout({
               <Link
                 key={item.id}
                 href={item.href}
+                prefetch={false}
                 onClick={() => setIsMenuOpen(false)}
                 className={`flex w-full items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${
                   isActive
@@ -110,6 +111,7 @@ export default function TeacherLayout({
           <div className="pt-2 mt-2 border-t border-indigo-800/50">
             <Link
               href="/portal/teacher/perfil"
+              prefetch={false}
               onClick={() => setIsMenuOpen(false)}
               className={`flex w-full items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${
                 pathname === '/portal/teacher/perfil' 

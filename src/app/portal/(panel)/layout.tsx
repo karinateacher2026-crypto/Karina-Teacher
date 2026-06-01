@@ -61,7 +61,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     };
 
     checkUserAndRoles();
-  }, [router]);
+  }, []);
 
   const handleLogout = async () => { 
     await supabase.auth.signOut(); 
