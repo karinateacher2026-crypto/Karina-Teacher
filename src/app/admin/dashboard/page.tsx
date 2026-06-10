@@ -305,9 +305,9 @@ export default function AdminDashboard() {
               {!selectedUserFilter ? (
                 <div className="relative text-left">
                   <Search className="absolute left-2 top-2 text-gray-400 text-left" size={14}/>
-                  <input 
-                    type="text" 
-                    placeholder="Filtrar por Estudiante..." 
+                  <input
+                    type="text"
+                    placeholder="Filtrar por Estudiante..."
                     className="pl-7 pr-3 py-1.5 bg-gray-50 rounded-lg text-xs font-bold text-gray-600 outline-none focus:ring-1 focus:ring-indigo-300 w-40 text-left"
                     value={userSearchTerm}
                     onChange={(e) => handleUserSearch(e.target.value)}
@@ -337,8 +337,6 @@ export default function AdminDashboard() {
                 <span className="text-[10px] font-bold uppercase text-left">Filtros</span>
             </div>
 
-            
-
             <select className="bg-gray-50 font-bold text-gray-600 outline-none text-xs cursor-pointer py-1.5 px-3 rounded-lg border border-gray-100 focus:border-indigo-300 text-left" value={sportFilter} onChange={(e) => { setSportFilter(e.target.value); setCategoryFilter('all'); }}>
                 <option value="all">Todos los Idiomas</option>
                 {dbSports.map(s => (
@@ -352,7 +350,7 @@ export default function AdminDashboard() {
                 <option value="female">Femenino</option>
             </select>
 
-            <select className="bg-gray-50 font-bold text-gray-600 outline-none text-xs cursor-pointer py-1.5 px-3 rounded-lg border border-gray-100 focus:border-indigo-300 text-left" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+            <select className="bg-gray-50 font-bold text-gray-600 outline-none text-xs cursor-pointer py-1.5 px-3 rounded-lg border border-gray-100 focus:border-indigo-300 text-left max-w-[130px] md:max-w-none" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
                 <option value="all">Todos los cursos</option>
                 {filteredCategories.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
