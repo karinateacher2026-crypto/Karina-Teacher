@@ -450,7 +450,18 @@ An English learning space for all ages, levels and learning journeys.
         </div>
         <div className="border-t border-gray-800 pt-8 text-center text-[10px] text-gray-500 uppercase tracking-widest flex flex-col md:flex-row justify-between items-center max-w-6xl mx-auto px-6">
           <span>© {new Date().getFullYear()} {CLIENT_CONFIG.name}</span>
-          <span className="mt-2 md:mt-0 flex items-center gap-1">Powered by Lógica Local <CheckCircle2 size={12} className="text-indigo-500"/></span>
+          <span className="mt-2 md:mt-0 flex items-center gap-1">
+            Powered by{" "}
+            <a
+              href="https://fmanalytics.com.ar/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors underline underline-offset-2"
+            >
+              FM Analytics
+            </a>
+            <CheckCircle2 size={12} className="text-indigo-500"/>
+          </span>
         </div>
       </footer>
     </div>
