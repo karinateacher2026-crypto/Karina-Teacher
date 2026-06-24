@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { 
-  Loader2, Plus, Trash2, MapPin, 
+import {
+  Loader2, Plus, Trash2, MapPin,
   Tags, CheckCircle, XCircle, Trophy, AlertTriangle, TrendingUp, TrendingDown,
-  Settings, Phone, CreditCard
+  Settings, Phone, CreditCard, Pencil, X, Check
 } from 'lucide-react';
 
 export default function PersonalizacionPage() {
@@ -37,7 +37,16 @@ const [newAliasCbu, setNewAliasCbu] = useState({ type: 'alias', value: '', descr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [isSubmittingAccount, setIsSubmittingAccount] = useState(false);
-  
+
+  // Estados de edición inline
+  const [editingSede, setEditingSede] = useState<{ sede_id: any; name: string; address: string } | null>(null);
+  const [editingDeporte, setEditingDeporte] = useState<{ deporte_id: any; name: string } | null>(null);
+  const [editingCategoria, setEditingCategoria] = useState<{ id: any; name: string; sede_id: string; deporte_id: string } | null>(null);
+  const [editingIngreso, setEditingIngreso] = useState<{ id: any; name: string } | null>(null);
+  const [editingEgreso, setEditingEgreso] = useState<{ id: any; name: string } | null>(null);
+  const [editingConfig, setEditingConfig] = useState<{ key: string; value: string; description: string } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
   // Estados del Modal de Borrado (agregamos 'config')
   const [deleteModal, setDeleteModal] = useState<{ type: 'sede' | 'deporte' | 'categoria' | 'ingreso' | 'egreso' | 'config', id: any } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -218,6 +227,79 @@ const [newAliasCbu, setNewAliasCbu] = useState({ type: 'alias', value: '', descr
   }
 };
 
+  // --- LÓGICA DE EDICIÓN ---
+  const handleUpdateSede = async () => {
+    if (!editingSede || !editingSede.name.trim()) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('sedes').update({ name: editingSede.name, address: editingSede.address }).eq('sede_id', editingSede.sede_id);
+      if (error) throw error;
+      showToast('success', 'Sede actualizada');
+      setEditingSede(null);
+      fetchData();
+    } catch { showToast('error', 'Error al actualizar la sede'); }
+    finally { setIsSaving(false); }
+  };
+
+  const handleUpdateDeporte = async () => {
+    if (!editingDeporte || !editingDeporte.name.trim()) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('deportes').update({ name: editingDeporte.name }).eq('deporte_id', editingDeporte.deporte_id);
+      if (error) throw error;
+      showToast('success', 'Idioma actualizado');
+      setEditingDeporte(null);
+      fetchData();
+    } catch { showToast('error', 'Error al actualizar el idioma'); }
+    finally { setIsSaving(false); }
+  };
+
+  const handleUpdateCategoria = async () => {
+    if (!editingCategoria || !editingCategoria.name.trim() || !editingCategoria.sede_id || !editingCategoria.deporte_id) {
+      showToast('error', 'Completá todos los campos'); return;
+    }
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('categories').update({
+        name: editingCategoria.name,
+        sede_id: parseInt(editingCategoria.sede_id),
+        deporte_id: parseInt(editingCategoria.deporte_id),
+      }).eq('id', editingCategoria.id);
+      if (error) throw error;
+      showToast('success', 'Curso actualizado');
+      setEditingCategoria(null);
+      fetchData();
+    } catch { showToast('error', 'Error al actualizar el curso'); }
+    finally { setIsSaving(false); }
+  };
+
+  const handleUpdateTransCategoria = async (type: 'ingreso' | 'egreso') => {
+    const item = type === 'ingreso' ? editingIngreso : editingEgreso;
+    if (!item || !item.name.trim()) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('transaction_categories').update({ name: item.name }).eq('id', item.id);
+      if (error) throw error;
+      showToast('success', `Categoría de ${type} actualizada`);
+      if (type === 'ingreso') setEditingIngreso(null); else setEditingEgreso(null);
+      fetchData();
+    } catch { showToast('error', 'Error al actualizar'); }
+    finally { setIsSaving(false); }
+  };
+
+  const handleUpdateConfig = async () => {
+    if (!editingConfig || !editingConfig.value.trim()) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('system_config').update({ value: editingConfig.value, description: editingConfig.description }).eq('key', editingConfig.key);
+      if (error) throw error;
+      showToast('success', 'Dato actualizado');
+      setEditingConfig(null);
+      fetchData();
+    } catch { showToast('error', 'Error al actualizar'); }
+    finally { setIsSaving(false); }
+  };
+
   // --- LÓGICA DE BORRADO ---
   const confirmDelete = async () => {
     if (!deleteModal) return;
@@ -318,12 +400,30 @@ const [newAliasCbu, setNewAliasCbu] = useState({ type: 'alias', value: '', descr
               <div className="p-4 bg-gray-50 border-b border-gray-100"><h3 className="font-black text-gray-600 uppercase text-xs tracking-wider">Sedes Registradas</h3></div>
               <div className="divide-y divide-gray-100">
                 {sedes.length > 0 ? sedes.map(sede => (
-                  <div key={sede.sede_id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                    <div>
-                      <h4 className="font-bold text-gray-900">{sede.name}</h4>
-                      {sede.address && <p className="text-xs text-gray-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {sede.address}</p>}
-                    </div>
-                    <button onClick={() => setDeleteModal({ type: 'sede', id: sede.sede_id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18} /></button>
+                  <div key={sede.sede_id} className="p-4 hover:bg-gray-50">
+                    {editingSede?.sede_id === sede.sede_id ? (
+                      <div className="space-y-2">
+                        <input autoFocus value={editingSede!.name} onChange={e => setEditingSede(prev => prev && {...prev, name: e.target.value})} className="w-full p-2 border border-indigo-300 rounded-lg text-sm font-bold text-gray-900 outline-none focus:border-indigo-500" placeholder="Nombre"/>
+                        <input value={editingSede!.address} onChange={e => setEditingSede(prev => prev && {...prev, address: e.target.value})} className="w-full p-2 border border-indigo-300 rounded-lg text-sm font-bold text-gray-900 outline-none focus:border-indigo-500" placeholder="Dirección"/>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={handleUpdateSede} disabled={isSaving} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+                            {isSaving ? <Loader2 className="animate-spin" size={14}/> : <><Check size={14}/> Guardar</>}
+                          </button>
+                          <button onClick={() => setEditingSede(null)} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200"><X size={14}/> Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-bold text-gray-900">{sede.name}</h4>
+                          {sede.address && <p className="text-xs text-gray-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {sede.address}</p>}
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingSede({ sede_id: sede.sede_id, name: sede.name, address: sede.address || '' })} className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"><Pencil size={16}/></button>
+                          <button onClick={() => setDeleteModal({ type: 'sede', id: sede.sede_id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18}/></button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )) : (<div className="p-8 text-center text-gray-400 font-bold text-sm">No hay sedes.</div>)}
               </div>
@@ -354,9 +454,26 @@ const [newAliasCbu, setNewAliasCbu] = useState({ type: 'alias', value: '', descr
               <div className="p-4 bg-gray-50 border-b border-gray-100"><h3 className="font-black text-gray-600 uppercase text-xs tracking-wider">Idiomas Activos</h3></div>
               <div className="divide-y divide-gray-100">
                 {deportes.length > 0 ? deportes.map(dep => (
-                  <div key={dep.deporte_id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                    <h4 className="font-bold text-gray-900">{dep.name}</h4>
-                    <button onClick={() => setDeleteModal({ type: 'deporte', id: dep.deporte_id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18} /></button>
+                  <div key={dep.deporte_id} className="p-4 hover:bg-gray-50">
+                    {editingDeporte?.deporte_id === dep.deporte_id ? (
+                      <div className="space-y-2">
+                        <input autoFocus value={editingDeporte!.name} onChange={e => setEditingDeporte(prev => prev && {...prev, name: e.target.value})} className="w-full p-2 border border-indigo-300 rounded-lg text-sm font-bold text-gray-900 outline-none focus:border-indigo-500" placeholder="Nombre del idioma"/>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={handleUpdateDeporte} disabled={isSaving} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+                            {isSaving ? <Loader2 className="animate-spin" size={14}/> : <><Check size={14}/> Guardar</>}
+                          </button>
+                          <button onClick={() => setEditingDeporte(null)} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200"><X size={14}/> Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-gray-900">{dep.name}</h4>
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingDeporte({ deporte_id: dep.deporte_id, name: dep.name })} className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"><Pencil size={16}/></button>
+                          <button onClick={() => setDeleteModal({ type: 'deporte', id: dep.deporte_id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18}/></button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )) : (<div className="p-8 text-center text-gray-400 font-bold text-sm">No hay idiomas.</div>)}
               </div>
@@ -402,17 +519,44 @@ const [newAliasCbu, setNewAliasCbu] = useState({ type: 'alias', value: '', descr
               <div className="p-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between"><h3 className="font-black text-gray-600 uppercase text-xs tracking-wider">Cursos activos</h3></div>
               <div className="divide-y divide-gray-100">
                 {categorias.length > 0 ? categorias.map(cat => (
-                  <div key={cat.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-gray-900">{cat.name}</h4>
+                  <div key={cat.id} className="p-4 hover:bg-gray-50 transition">
+                    {editingCategoria?.id === cat.id ? (
+                      <div className="space-y-2">
+                        <input autoFocus value={editingCategoria!.name} onChange={e => setEditingCategoria(prev => prev && {...prev, name: e.target.value})} className="w-full p-2 border border-indigo-300 rounded-lg text-sm font-bold text-gray-900 outline-none focus:border-indigo-500" placeholder="Nombre"/>
+                        <div className="grid grid-cols-2 gap-2">
+                          <select value={editingCategoria!.deporte_id} onChange={e => setEditingCategoria(prev => prev && {...prev, deporte_id: e.target.value})} className="p-2 border border-indigo-300 rounded-lg text-sm font-bold text-gray-900 outline-none bg-white focus:border-indigo-500">
+                            <option value="">Idioma...</option>
+                            {deportes.map(d => <option key={d.deporte_id} value={d.deporte_id}>{d.name}</option>)}
+                          </select>
+                          <select value={editingCategoria!.sede_id} onChange={e => setEditingCategoria(prev => prev && {...prev, sede_id: e.target.value})} className="p-2 border border-indigo-300 rounded-lg text-sm font-bold text-gray-900 outline-none bg-white focus:border-indigo-500">
+                            <option value="">Sede...</option>
+                            {sedes.map(s => <option key={s.sede_id} value={s.sede_id}>{s.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={handleUpdateCategoria} disabled={isSaving} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+                            {isSaving ? <Loader2 className="animate-spin" size={14}/> : <><Check size={14}/> Guardar</>}
+                          </button>
+                          <button onClick={() => setEditingCategoria(null)} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200"><X size={14}/> Cancelar</button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 mt-1.5 text-xs font-medium text-gray-500">
-                        <span className="flex items-center gap-1"><Trophy size={12}/> {cat.deportes?.name || 'S/D'}</span>
-                        <span className="flex items-center gap-1"><MapPin size={12}/> {cat.sedes?.name || 'S/D'}</span>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-gray-900">{cat.name}</h4>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1.5 text-xs font-medium text-gray-500">
+                            <span className="flex items-center gap-1"><Trophy size={12}/> {cat.deportes?.name || 'S/D'}</span>
+                            <span className="flex items-center gap-1"><MapPin size={12}/> {cat.sedes?.name || 'S/D'}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingCategoria({ id: cat.id, name: cat.name, sede_id: String(cat.sede_id || ''), deporte_id: String(cat.deporte_id || '') })} className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"><Pencil size={16}/></button>
+                          <button onClick={() => setDeleteModal({ type: 'categoria', id: cat.id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18}/></button>
+                        </div>
                       </div>
-                    </div>
-                    <button onClick={() => setDeleteModal({ type: 'categoria', id: cat.id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18} /></button>
+                    )}
                   </div>
                 )) : (<div className="p-8 text-center text-gray-400 font-bold text-sm">No hay cursos.</div>)}
               </div>
@@ -443,9 +587,26 @@ const [newAliasCbu, setNewAliasCbu] = useState({ type: 'alias', value: '', descr
               <div className="p-4 bg-emerald-50 border-b border-emerald-100"><h3 className="font-black text-emerald-700 uppercase text-xs tracking-wider">Categorías de Ingreso Activas</h3></div>
               <div className="divide-y divide-gray-100">
                 {ingresosCats.length > 0 ? ingresosCats.map(inc => (
-                  <div key={inc.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                    <h4 className="font-bold text-gray-900">{inc.name}</h4>
-                    <button onClick={() => setDeleteModal({ type: 'ingreso', id: inc.id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18} /></button>
+                  <div key={inc.id} className="p-4 hover:bg-gray-50">
+                    {editingIngreso?.id === inc.id ? (
+                      <div className="space-y-2">
+                        <input autoFocus value={editingIngreso!.name} onChange={e => setEditingIngreso(prev => prev && {...prev, name: e.target.value})} className="w-full p-2 border border-emerald-300 rounded-lg text-sm font-bold text-gray-900 outline-none focus:border-emerald-500" placeholder="Nombre categoría"/>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => handleUpdateTransCategoria('ingreso')} disabled={isSaving} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700">
+                            {isSaving ? <Loader2 className="animate-spin" size={14}/> : <><Check size={14}/> Guardar</>}
+                          </button>
+                          <button onClick={() => setEditingIngreso(null)} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200"><X size={14}/> Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-gray-900">{inc.name}</h4>
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingIngreso({ id: inc.id, name: inc.name })} className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"><Pencil size={16}/></button>
+                          <button onClick={() => setDeleteModal({ type: 'ingreso', id: inc.id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18}/></button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )) : (<div className="p-8 text-center text-gray-400 font-bold text-sm">No hay categorías de ingreso.</div>)}
               </div>
@@ -476,9 +637,26 @@ const [newAliasCbu, setNewAliasCbu] = useState({ type: 'alias', value: '', descr
               <div className="p-4 bg-red-50 border-b border-red-100"><h3 className="font-black text-red-700 uppercase text-xs tracking-wider">Categorías de Egreso Activas</h3></div>
               <div className="divide-y divide-gray-100">
                 {egresosCats.length > 0 ? egresosCats.map(exp => (
-                  <div key={exp.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                    <h4 className="font-bold text-gray-900">{exp.name}</h4>
-                    <button onClick={() => setDeleteModal({ type: 'egreso', id: exp.id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18} /></button>
+                  <div key={exp.id} className="p-4 hover:bg-gray-50">
+                    {editingEgreso?.id === exp.id ? (
+                      <div className="space-y-2">
+                        <input autoFocus value={editingEgreso!.name} onChange={e => setEditingEgreso(prev => prev && {...prev, name: e.target.value})} className="w-full p-2 border border-red-300 rounded-lg text-sm font-bold text-gray-900 outline-none focus:border-red-500" placeholder="Nombre categoría"/>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => handleUpdateTransCategoria('egreso')} disabled={isSaving} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700">
+                            {isSaving ? <Loader2 className="animate-spin" size={14}/> : <><Check size={14}/> Guardar</>}
+                          </button>
+                          <button onClick={() => setEditingEgreso(null)} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200"><X size={14}/> Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-gray-900">{exp.name}</h4>
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingEgreso({ id: exp.id, name: exp.name })} className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"><Pencil size={16}/></button>
+                          <button onClick={() => setDeleteModal({ type: 'egreso', id: exp.id })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18}/></button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )) : (<div className="p-8 text-center text-gray-400 font-bold text-sm">No hay categorías de egreso.</div>)}
               </div>
@@ -576,29 +754,40 @@ const [newAliasCbu, setNewAliasCbu] = useState({ type: 'alias', value: '', descr
                   configData.filter(c => c.key.startsWith('alias') || c.key.startsWith('cbu')).map(config => {
                     const isAlias = config.key.includes('alias');
                     return (
-                    <div key={config.key} className="p-4 flex items-center justify-between hover:bg-gray-50 gap-2">
-                      
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className={`p-2 rounded-lg shrink-0 ${isAlias ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                          <CreditCard size={16} />
+                    <div key={config.key} className="p-4 hover:bg-gray-50 gap-2">
+                      {editingConfig?.key === config.key ? (
+                        <div className="space-y-2">
+                          <input autoFocus value={editingConfig!.value} onChange={e => setEditingConfig(prev => prev && {...prev, value: e.target.value})} className="w-full p-2 border border-purple-300 rounded-lg text-sm font-bold text-gray-900 outline-none focus:border-purple-500" placeholder={isAlias ? 'Alias' : 'Número CBU/CVU'}/>
+                          <input value={editingConfig!.description} onChange={e => setEditingConfig(prev => prev && {...prev, description: e.target.value})} className="w-full p-2 border border-purple-300 rounded-lg text-sm font-bold text-gray-900 outline-none focus:border-purple-500" placeholder={isAlias ? 'Título / Destino' : 'Alias asociado'}/>
+                          <div className="flex gap-2 pt-1">
+                            <button onClick={handleUpdateConfig} disabled={isSaving} className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700">
+                              {isSaving ? <Loader2 className="animate-spin" size={14}/> : <><Check size={14}/> Guardar</>}
+                            </button>
+                            <button onClick={() => setEditingConfig(null)} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200"><X size={14}/> Cancelar</button>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">{isAlias ? 'Alias' : 'CBU / CVU'}</p>
-                          <h4 className="font-bold text-gray-900 text-sm leading-none truncate">{config.value}</h4>
-                          
-                          {/* DESCRIPCIÓN DINÁMICA */}
-                          {config.description && (
-                            <p className="text-[11px] text-purple-600 font-semibold italic mt-1 truncate">
-                              {isAlias ? config.description : `Asociado a: ${config.description}`}
-                            </p>
-                          )}
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className={`p-2 rounded-lg shrink-0 ${isAlias ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                              <CreditCard size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">{isAlias ? 'Alias' : 'CBU / CVU'}</p>
+                              <h4 className="font-bold text-gray-900 text-sm leading-none truncate">{config.value}</h4>
+                              {config.description && (
+                                <p className="text-[11px] text-purple-600 font-semibold italic mt-1 truncate">
+                                  {isAlias ? config.description : `Asociado a: ${config.description}`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={() => setEditingConfig({ key: config.key, value: config.value, description: config.description || '' })} className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"><Pencil size={16}/></button>
+                            <button onClick={() => setDeleteModal({ type: 'config', id: config.key })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg"><Trash2 size={18}/></button>
+                          </div>
                         </div>
-                      </div>
-
-                      <button onClick={() => setDeleteModal({ type: 'config', id: config.key })} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg shrink-0">
-                        <Trash2 size={18} />
-                      </button>
-                      
+                      )}
                     </div>
                   )}) : (
                   <div className="p-8 text-center text-gray-400 font-bold text-sm">No hay alias ni CBUs registrados.</div>

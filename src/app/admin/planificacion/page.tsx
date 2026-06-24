@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../lib/supabaseClient'
-import { 
-  Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, 
+import {
+  Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight,
   Check, Edit2, Trash2, X, Save, Search, Filter, Users, AlertCircle, Loader2, Info,
   UserCheck, Tag
 } from 'lucide-react';
+
+const PAGE_SIZE = 30;
 
 export default function AdminPlanner() {
   // ESTADOS PARA PLANIFICADOR (ARRIBA)
@@ -26,9 +28,17 @@ export default function AdminPlanner() {
   const [filterYear, setFilterYear] = useState<string>(''); 
   const [timeFilter, setTimeFilter] = useState<'future' | 'past' | 'all'>('future');
   
+  // ESTADOS AGENDA PAGINADA
+  const [practices, setPractices] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [isLoadingPractices, setIsLoadingPractices] = useState(false);
+
+  // Categorías para el filtro de la agenda
+  const [filterCategories, setFilterCategories] = useState<any[]>([]);
+
   const [assignedProfNames, setAssignedProfNames] = useState<string[]>([]);
-  const [existingPractices, setExistingPractices] = useState<any[]>([]);
-  
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [startTime, setStartTime] = useState('18:00');
   const [endTime, setEndTime] = useState('19:30');
@@ -51,32 +61,91 @@ export default function AdminPlanner() {
     }
   }, [notification]);
 
-  const loadData = async () => {
+  const getTodayStr = () => new Intl.DateTimeFormat('fr-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+
+  // Carga sedes y deportes (solo una vez)
+  useEffect(() => {
+    const loadStaticData = async () => {
+      const { data: sedesData } = await supabase.from('sedes').select('*').order('name');
+      if (sedesData) setSedes(sedesData);
+      const { data: deportesData } = await supabase.from('deportes').select('*').order('name');
+      if (deportesData) setDeportes(deportesData);
+    };
+    loadStaticData();
+  }, []);
+
+  // Carga categorías para el dropdown de filtro de la agenda
+  useEffect(() => {
+    const loadFilterCategories = async () => {
+      let query = supabase.from('categories').select('id, name, sede_id, deporte_id').order('name');
+      if (filterSedeId !== '') query = query.eq('sede_id', filterSedeId);
+      if (filterDeporteId !== '') query = query.eq('deporte_id', filterDeporteId);
+      const { data } = await query;
+      setFilterCategories(data || []);
+    };
+    loadFilterCategories();
+  }, [filterSedeId, filterDeporteId]);
+
+  // Función principal paginada con filtros server-side
+  const loadPractices = useCallback(async (page: number) => {
+    setIsLoadingPractices(true);
     try {
-      // Disparamos las 3 consultas AL MISMO TIEMPO para máxima velocidad
-      // sin recortar el historial, traemos todas las clases.
-      const [sedesRes, deportesRes, practicesRes] = await Promise.all([
-        supabase.from('sedes').select('*').order('name'),
-        supabase.from('deportes').select('*').order('name'),
-        supabase
-          .from('practices')
-          .select('*, categories(id, name, gender, sede_id, deporte_id, sedes(name), deportes(name))')
-          .order('scheduled_date', { ascending: true }) // <--- SIN LÍMITE DE FECHA
-      ]);
+      const todayStr = getTodayStr();
 
-      // Guardamos los resultados si no hubo errores
-      if (sedesRes.data) setSedes(sedesRes.data);
-      if (deportesRes.data) setDeportes(deportesRes.data);
-      
-      if (practicesRes.error) throw practicesRes.error;
-      if (practicesRes.data) setExistingPractices(practicesRes.data);
+      // Resolver IDs de categorías según filtros de sede/idioma
+      let categoryIds: number[] | null = null;
+      if (filterSedeId !== '' || filterDeporteId !== '') {
+        let catQuery = supabase.from('categories').select('id');
+        if (filterSedeId !== '') catQuery = catQuery.eq('sede_id', filterSedeId);
+        if (filterDeporteId !== '') catQuery = catQuery.eq('deporte_id', filterDeporteId);
+        const { data: catData } = await catQuery;
+        categoryIds = catData?.map((c: any) => c.id) || [];
+        if (categoryIds.length === 0) {
+          setPractices([]);
+          setTotalCount(0);
+          return;
+        }
+      }
 
+      let query = supabase
+        .from('practices')
+        .select('*, categories(id, name, gender, sede_id, deporte_id, sedes(name), deportes(name))', { count: 'exact' });
+
+      if (categoryIds !== null) query = query.in('category_id', categoryIds);
+      if (filterCatId !== '') query = query.eq('category_id', Number(filterCatId));
+      if (filterMonth !== '') query = query.like('scheduled_date', `%-${filterMonth}-%`);
+      if (filterYear !== '') query = query.like('scheduled_date', `${filterYear}-%`);
+      if (timeFilter === 'future') query = query.gte('scheduled_date', todayStr);
+      else if (timeFilter === 'past') query = query.lt('scheduled_date', todayStr);
+
+      const from = page * PAGE_SIZE;
+      const { data, count, error } = await query
+        .order('scheduled_date', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) throw error;
+      setPractices(data || []);
+      setTotalCount(count || 0);
     } catch (err) {
-      console.error("Error al cargar datos:", err);
+      console.error('Error al cargar eventos:', err);
+    } finally {
+      setIsLoadingPractices(false);
     }
-  };
+  }, [filterSedeId, filterDeporteId, filterCatId, filterMonth, filterYear, timeFilter]);
 
-  useEffect(() => { loadData(); }, []);
+  // Re-fetch cuando cambian los filtros (resetea a página 0)
+  useEffect(() => {
+    setCurrentPage(0);
+    loadPractices(0);
+  }, [loadPractices]);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    loadPractices(page);
+  };
 
   useEffect(() => {
     const fetchFilteredCategories = async () => {
@@ -183,7 +252,7 @@ export default function AdminPlanner() {
         setNotification({ message: `¡Planificados ${dates.length} días correctamente!`, type: 'success' });
         setDates([]);
       }
-      loadData();
+      loadPractices(currentPage);
     } catch (err: any) {
       setNotification({ message: `Error: ${err.message}`, type: 'error' });
     } finally {
@@ -198,7 +267,7 @@ export default function AdminPlanner() {
       if (error) throw error;
       setDeleteModal({ show: false, practiceId: null });
       setNotification({ message: "Registro eliminado correctamente", type: 'info' });
-      loadData();
+      loadPractices(currentPage);
     } catch (err: any) {
       setNotification({ message: "No se pudo eliminar el registro", type: 'error' });
     }
@@ -230,25 +299,6 @@ export default function AdminPlanner() {
     setSelectedSedeId(''); setSelectedDeporteId(''); setEventType('clase');
   };
 
-  const filteredPractices = [...existingPractices]
-    .filter(p => {
-      const matchesSede = filterSedeId === '' || p.categories?.sede_id === filterSedeId;
-      const matchesDeporte = filterDeporteId === '' || p.categories?.deporte_id === filterDeporteId;
-      const matchesCat = filterCatId === '' || p.category_id === filterCatId;
-      const matchesMonth = filterMonth === '' || p.scheduled_date.split('-')[1] === filterMonth;
-      const matchesYear = filterYear === '' || p.scheduled_date.startsWith(filterYear);
-      const todayStr = new Intl.DateTimeFormat('fr-CA', {
-        timeZone: 'America/Argentina/Buenos_Aires',
-        year: 'numeric', month: '2-digit', day: '2-digit'
-      }).format(new Date());
-      
-      let matchesTime = true;
-      if (timeFilter === 'future') matchesTime = p.scheduled_date >= todayStr;
-      else if (timeFilter === 'past') matchesTime = p.scheduled_date < todayStr;
-      
-    return matchesSede && matchesDeporte && matchesCat && matchesMonth && matchesYear && matchesTime;    })
-    .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
-
   const formatDateSafely = (dateStr: string) => {
     const parts = dateStr.split('T')[0].split('-');
     const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -257,6 +307,10 @@ export default function AdminPlanner() {
 
   const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 4 }, (_, i) => currentYear - 1 + i);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 space-y-10 pb-20 relative">
@@ -477,8 +531,13 @@ export default function AdminPlanner() {
             <div className="flex items-center gap-2">
               <Filter size={18} className="text-indigo-600"/>
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Agenda Programada</h3>
+              {!isLoadingPractices && (
+                <span className="text-[9px] font-black text-slate-300 uppercase">
+                  — {totalCount} eventos
+                </span>
+              )}
             </div>
-            
+
             <div className="flex flex-wrap justify-end gap-3 w-full md:w-auto">
               <select 
                 value={filterSedeId} 
@@ -510,13 +569,9 @@ export default function AdminPlanner() {
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 max-w-[200px] truncate"
               >
                 <option value="">Curso: Todas</option>
-                {[...new Set(existingPractices.map(p => JSON.stringify({id: p.categories?.id, name: p.categories?.name, sede: p.categories?.sede_id, dep: p.categories?.deporte_id})))]
-                  .map(str => JSON.parse(str))
-                  .filter(c => (filterSedeId === '' || c.sede === filterSedeId) && (filterDeporteId === '' || c.dep === filterDeporteId))
-                  .map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))
-                }
+                {filterCategories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
               </select>
           
               <select 
@@ -545,11 +600,7 @@ export default function AdminPlanner() {
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 min-w-[100px]"
               >
                 <option value="">Año: Todos</option>
-                {[...new Set(existingPractices.map(p => p.scheduled_date.substring(0, 4)))]
-                  .sort((a, b) => b.localeCompare(a)) 
-                  .map(yearStr => (
-                    <option key={yearStr} value={yearStr}>{yearStr}</option>
-                ))}
+                {yearOptions.map(y => <option key={y} value={String(y)}>{y}</option>)}
               </select>
               
               <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
@@ -560,66 +611,124 @@ export default function AdminPlanner() {
             </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredPractices.length > 0 ? (
-            filteredPractices.map((p) => (
-              <div 
-                key={p.id} 
-                onClick={() => openHistory(p)}
-                className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden cursor-pointer"
-              >
-                <div className="flex flex-col gap-2 mb-4 relative z-10">
-                  <div className="flex justify-between items-start w-full">
-                    <span className="bg-indigo-50 text-indigo-950 text-[10px] font-black px-3 py-1 rounded-full uppercase italic border border-indigo-100">
-                      {p.categories?.name}
-                    </span>
-                    
-                    <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                      <button onClick={(e) => { e.stopPropagation(); handleEditClick(e, p); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit2 size={14}/></button>
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteModal({ show: true, practiceId: p.id }); }} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14}/></button>
+        {/* GRID DE TARJETAS */}
+        {isLoadingPractices ? (
+          <div className="py-20 text-center space-y-4">
+            <Loader2 className="animate-spin mx-auto text-indigo-600" size={40}/>
+            <p className="font-black text-[10px] text-slate-400 uppercase tracking-widest">Cargando eventos...</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {practices.length > 0 ? (
+                practices.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => openHistory(p)}
+                    className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden cursor-pointer"
+                  >
+                    <div className="flex flex-col gap-2 mb-4 relative z-10">
+                      <div className="flex justify-between items-start w-full">
+                        <span className="bg-indigo-50 text-indigo-950 text-[10px] font-black px-3 py-1 rounded-full uppercase italic border border-indigo-100">
+                          {p.categories?.name}
+                        </span>
+
+                        <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <button onClick={(e) => { e.stopPropagation(); handleEditClick(e, p); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit2 size={14}/></button>
+                          <button onClick={(e) => { e.stopPropagation(); setDeleteModal({ show: true, practiceId: p.id }); }} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={14}/></button>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1">
+                        <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-tighter border border-slate-200">
+                          {p.categories?.sedes?.name || 'Sede N/A'}
+                        </span>
+                        <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase tracking-tighter border border-blue-100">
+                          {p.categories?.deportes?.name || 'Idioma N/A'}
+                        </span>
+                        {/* INDICADOR VISUAL DE REVISIÓN */}
+                        {p.event_type === 'revision' && (
+                          <span className="bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-tighter border border-emerald-200 flex items-center gap-1">
+                            <Search size={8}/> Revisión
+                          </span>
+                        )}
+
+                        {/* INDICADOR VISUAL DE EXAMEN */}
+                        {p.event_type === 'examen' && (
+                          <span className="text-[8px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded uppercase tracking-tighter border border-orange-200 flex items-center gap-1">
+                            <Tag size={8}/> Examen
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex gap-1">
-                    <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-tighter border border-slate-200">
-                      {p.categories?.sedes?.name || 'Sede N/A'}
-                    </span>
-                    <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase tracking-tighter border border-blue-100">
-                      {p.categories?.deportes?.name || 'Idioma N/A'}
-                    </span>
-                    {/* INDICADOR VISUAL DE REVISIÓN */}
-                    {p.event_type === 'revision' && (
-                      <span className="bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-tighter border border-emerald-200 flex items-center gap-1">
-                        <Search size={8}/> Revisión
-                      </span>
-                    )}
+                    <h4 className="font-black text-indigo-950 text-base mb-1 uppercase tracking-tighter relative z-10">
+                      {formatDateSafely(p.scheduled_date)}
+                    </h4>
 
-                    {/* INDICADOR VISUAL DE EXAMEN */}
-                    {p.event_type === 'examen' && (
-                      <span className="text-[8px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded uppercase tracking-tighter border border-orange-200 flex items-center gap-1">
-                        <Tag size={8}/> Examen
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2 text-slate-700 relative z-10">
+                      <Clock size={12} className="text-indigo-500" />
+                      <span className="text-[11px] font-bold uppercase relative z-10">{p.observations?.replace('Turno: ', '')}</span>
+                    </div>
+                    <div className="absolute inset-0 border-2 border-transparent group-hover:border-indigo-100 group-hover:bg-slate-50 transition-all duration-300 rounded-[24px] z-0"/>
                   </div>
+                ))
+              ) : (
+                <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-[32px]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No se encontraron eventos con estos filtros</p>
                 </div>
-                
-                <h4 className="font-black text-indigo-950 text-base mb-1 uppercase tracking-tighter relative z-10">
-                  {formatDateSafely(p.scheduled_date)}
-                </h4>
-                
-                <div className="flex items-center gap-2 text-slate-700 relative z-10">
-                  <Clock size={12} className="text-indigo-500" />
-                  <span className="text-[11px] font-bold uppercase relative z-10">{p.observations?.replace('Turno: ', '')}</span>
-                </div>
-                <div className="absolute inset-0 border-2 border-transparent group-hover:border-indigo-100 group-hover:bg-slate-50 transition-all duration-300 rounded-[24px] z-0"/>
-              </div>
-            ))
-          ) : (
-            <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-[32px]">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No se encontraron eventos con estos filtros</p>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* PAGINACIÓN */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-4">
+                <button
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 0}
+                  className="p-2 bg-white border border-slate-200 rounded-xl shadow-sm disabled:opacity-30 hover:bg-slate-50 transition-all"
+                >
+                  <ChevronLeft size={16} className="text-slate-600"/>
+                </button>
+
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i).map(page => {
+                    const isCurrentPage = page === currentPage;
+                    const isNearCurrent = Math.abs(page - currentPage) <= 2;
+                    const isEdge = page === 0 || page === totalPages - 1;
+                    if (!isNearCurrent && !isEdge) {
+                      if (page === 1 || page === totalPages - 2) {
+                        return <span key={page} className="text-[10px] text-slate-300 px-1 self-center">…</span>;
+                      }
+                      return null;
+                    }
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${isCurrentPage ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                      >
+                        {page + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage >= totalPages - 1}
+                  className="p-2 bg-white border border-slate-200 rounded-xl shadow-sm disabled:opacity-30 hover:bg-slate-50 transition-all"
+                >
+                  <ChevronRight size={16} className="text-slate-600"/>
+                </button>
+
+                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                  {currentPage + 1} / {totalPages}
+                </span>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

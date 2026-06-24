@@ -12,6 +12,10 @@ export default function DivisionesPage() {
   const [allPlayers, setAllPlayers] = useState<any[]>([]);
   const [playerStats, setPlayerStats] = useState<Record<string, any[]>>({});
   const [categoryDoneCount, setCategoryDoneCount] = useState<Record<number, number>>({});
+  // practiceDate: practice_id → scheduled_date (YYYY-MM-DD)
+  const [practiceDate, setPracticeDate] = useState<Record<string, string>>({});
+  // playerEnrolledAt: "player_id|category_id" → enrolled_at (YYYY-MM-DD)
+  const [playerEnrolledAt, setPlayerEnrolledAt] = useState<Record<string, string>>({});
   const [initialLoading, setInitialLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -45,10 +49,18 @@ export default function DivisionesPage() {
       // 2. Cargar TODOS los jugadores de mis categorías
       const { data: relData, error: relError } = await supabase
         .from('user_categories')
-        .select('category_id, users:user_id (id, name, status, role)')
+        .select('category_id, enrolled_at, users:user_id (id, name, status, role)')
         .in('category_id', myCategoryIds);
 
       if (relError) throw relError;
+
+      // playerEnrolledAt: "player_id|category_id" → enrolled_at (YYYY-MM-DD)
+      const playerEnrolledAt: Record<string, string> = {};
+      relData?.forEach((rel: any) => {
+        if (rel.users?.id && rel.category_id && rel.enrolled_at) {
+          playerEnrolledAt[`${rel.users.id}|${rel.category_id}`] = rel.enrolled_at;
+        }
+      });
 
       const players = relData
         ?.map((rel: any) => ({
@@ -59,6 +71,7 @@ export default function DivisionesPage() {
         .sort((a, b) => a.name.localeCompare(b.name)) || [];
 
       setAllPlayers(players);
+      setPlayerEnrolledAt(playerEnrolledAt);
 
       // 3. LÓGICA MAESTRA DE DIVISIONES: Cargar Prácticas y Asistencias de los últimos 30 días
       const thirtyDaysAgo = new Date();
@@ -67,9 +80,15 @@ export default function DivisionesPage() {
 
       const { data: recentPractices } = await supabase
         .from('practices')
-        .select('id, category_id')
+        .select('id, category_id, scheduled_date')
         .in('category_id', myCategoryIds)
         .gte('scheduled_date', dateLimitStr);
+
+      const pDate: Record<string, string> = {};
+      recentPractices?.forEach((p: any) => {
+        if (p.scheduled_date) pDate[p.id] = p.scheduled_date.slice(0, 10);
+      });
+      setPracticeDate(pDate);
 
       const pStats: any = {};
       const practicasConAsistencia: Record<number, Set<string>> = {};
@@ -161,13 +180,20 @@ export default function DivisionesPage() {
               {allPlayers.filter(p => p.category_id === cat.id && p.status === 'active').map(p => {
                 // 1. Obtenemos todos los registros del jugador
                 const allRecs = playerStats[p.id] || [];
-                
-                // 2. FILTRO MAESTRO: Solo tomamos las asistencias que pertenecen a ESTA categoría
-                const filteredRecs = allRecs.filter((r: any) => r.category_id === cat.id);
 
-                // 3. Calculamos el porcentaje
-                // Denominador = prácticas únicas con asistencia tomada en esta categoría (últimos 30 días)
-                const totalClases = categoryDoneCount[cat.id] || 0;
+                // 2. FILTRO MAESTRO: Solo tomamos las asistencias que pertenecen a ESTA categoría
+                let filteredRecs = allRecs.filter((r: any) => r.category_id === cat.id);
+
+                // 3. Filtramos desde cuándo el jugador se incorporó a esta categoría
+                const enrolledAt = playerEnrolledAt[`${p.id}|${cat.id}`] || null;
+                if (enrolledAt) {
+                  filteredRecs = filteredRecs.filter((r: any) => (practiceDate[r.practice_id] || '') >= enrolledAt);
+                }
+
+                // 4. Denominador: solo las prácticas donde este jugador tiene registro propio
+                // (evita arrastrar entrenamientos de la categoría previos a su incorporación
+                // o de un período de baja/inactividad)
+                const totalClases = filteredRecs.length;
                 const presentes = filteredRecs.filter((r: any) => r.status === 'present').length;
                 const porc = totalClases > 0 ? Math.round((presentes / totalClases) * 100) : 0;
 

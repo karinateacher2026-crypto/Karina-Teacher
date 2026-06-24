@@ -74,7 +74,10 @@ export default function AsignacionCategorias() {
     try {
       const { error } = await supabase
         .from('user_categories')
-        .update({ category_id: Number(row.temp_category_id) })
+        .update({
+          category_id: Number(row.temp_category_id),
+          enrolled_at: new Date().toISOString().slice(0, 10),
+        })
         .eq('id', row.id);
 
       if (error) throw error;

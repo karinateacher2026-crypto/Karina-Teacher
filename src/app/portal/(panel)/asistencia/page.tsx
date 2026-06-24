@@ -107,7 +107,12 @@ export default function AsistenciaPage() {
       const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const practicesForDay = scheduledPractices
         .filter(p => !selectedCategoryId || p.category_id === selectedCategoryId)
-        .filter(p => p.scheduled_date.startsWith(dayStr));
+        .filter(p => p.scheduled_date.startsWith(dayStr))
+        .filter(p => {
+          // Alumno inactivo: solo ve eventos con registro de asistencia real (de cuando estuvo activo).
+          if (user?.status !== 'inactive') return true;
+          return attendanceData.some(a => a.practice_id === p.id);
+        });
       const isPast = dayStr < todayStr;
       const isToday = dayStr === todayStr;
 

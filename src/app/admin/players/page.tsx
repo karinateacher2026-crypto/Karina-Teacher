@@ -89,7 +89,7 @@ const fetchAttendance = async () => {
   // 1. Prácticas de los últimos 30 días con su category_id y deporte_id
   const { data: recentPractices } = await supabase
     .from('practices')
-    .select('id, category_id, categories(deporte_id)')
+    .select('id, category_id, scheduled_date, categories(deporte_id)')
     .gte('scheduled_date', dateLimitStr);
 
   if (!recentPractices?.length) { setPlayerStats({}); return; }
@@ -99,62 +99,44 @@ const fetchAttendance = async () => {
   // 2. Asistencias + inscripciones de alumnos, en paralelo
   const [attRes, ucRes] = await Promise.all([
     supabase.from('attendance').select('player_id, status, practice_id').in('practice_id', practiceIds),
-    supabase.from('user_categories').select('user_id, category_id, deporte_id')
+    supabase.from('user_categories').select('user_id, category_id, deporte_id, enrolled_at')
   ]);
 
   if (!attRes.data?.length) { setPlayerStats({}); return; }
 
-  // 3. Mapa practice_id -> { categoryId, deporteId }
-  const practiceMap: Record<string, { categoryId: string; deporteId: string }> = {};
+  // 3. Mapa practice_id -> { categoryId, deporteId, date }
+  const practiceMap: Record<string, { categoryId: string; deporteId: string; date: string }> = {};
   recentPractices.forEach((p: any) => {
     practiceMap[p.id] = {
       categoryId: p.category_id?.toString(),
-      deporteId: (p.categories as any)?.deporte_id?.toString()
+      deporteId: (p.categories as any)?.deporte_id?.toString(),
+      date: p.scheduled_date ? p.scheduled_date.slice(0, 10) : ''
     };
   });
 
-  // 4. Mapa player_id -> deporte_id -> Set<category_id> (sus inscripciones)
-  const playerCatsByDeporte: Record<string, Record<string, Set<string>>> = {};
+  // 4. enrolled_at por jugador y categoría: "user_id|category_id" → enrolled_at
+  const enrolledAt: Record<string, string> = {};
   ucRes.data?.forEach((uc: any) => {
     const pid = uc.user_id?.toString();
-    const did = uc.deporte_id?.toString();
     const cid = uc.category_id?.toString();
-    if (!pid || !did || !cid) return;
-    if (!playerCatsByDeporte[pid]) playerCatsByDeporte[pid] = {};
-    if (!playerCatsByDeporte[pid][did]) playerCatsByDeporte[pid][did] = new Set();
-    playerCatsByDeporte[pid][did].add(cid);
+    if (pid && cid && uc.enrolled_at) enrolledAt[`${pid}|${cid}`] = uc.enrolled_at;
   });
 
-  // 5. Denominador: prácticas únicas con asistencia tomada, por category_id
-  const catPracticeSet: Record<string, Set<string>> = {};
-  attRes.data.forEach((row: any) => {
-    const { categoryId } = practiceMap[row.practice_id] || {};
-    if (!categoryId) return;
-    if (!catPracticeSet[categoryId]) catPracticeSet[categoryId] = new Set();
-    catPracticeSet[categoryId].add(row.practice_id);
-  });
-
-  // 6. Stats por alumno y deporte (numerador de presencias)
+  // 5. Stats por alumno y deporte: solo cuentan las prácticas donde el alumno tiene
+  // registro propio de asistencia (evita arrastrar entrenamientos de la categoría
+  // previos a su incorporación, o de un período de baja/inactividad)
   const stats: Record<string, Record<string, { present: number; total: number }>> = {};
   attRes.data.forEach((row: any) => {
-    const { categoryId, deporteId } = practiceMap[row.practice_id] || {};
+    const { categoryId, deporteId, date } = practiceMap[row.practice_id] || {};
     if (!categoryId || !deporteId) return;
+
+    const playerEnrolledAt = enrolledAt[`${row.player_id}|${categoryId}`];
+    if (playerEnrolledAt && date < playerEnrolledAt) return;
+
     if (!stats[row.player_id]) stats[row.player_id] = {};
     if (!stats[row.player_id][deporteId]) stats[row.player_id][deporteId] = { present: 0, total: 0 };
+    stats[row.player_id][deporteId].total++;
     if (row.status === 'present') stats[row.player_id][deporteId].present++;
-  });
-
-  // 7. Denominador por alumno: solo prácticas de SUS categorías para ese deporte
-  Object.keys(stats).forEach(playerId => {
-    Object.keys(stats[playerId]).forEach(deporteId => {
-      const playerCats = playerCatsByDeporte[playerId]?.[deporteId];
-      if (!playerCats) return;
-      const uniquePractices = new Set<string>();
-      playerCats.forEach(catId => {
-        catPracticeSet[catId]?.forEach(pid => uniquePractices.add(pid));
-      });
-      stats[playerId][deporteId].total = uniquePractices.size;
-    });
   });
 
   setPlayerStats(stats);
