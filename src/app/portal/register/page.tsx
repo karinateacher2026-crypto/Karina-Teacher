@@ -133,15 +133,11 @@ export default function Register() {
     }
 
     setLoading(true)
-    // 1. Validamos si el CUIL ya existe en la tabla 'users'
-    const { data: existingUser, error: checkError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('cuil', formData.cuil)
-      .maybeSingle();
+    // 1. Validamos si el CUIL ya existe (vía función segura, sin leer la tabla)
+    const { data: cuilYaExiste } = await supabase.rpc('cuil_exists', { p_cuil: formData.cuil });
 
     // 2. Si hay un usuario con ese CUIL, cortamos el proceso
-    if (existingUser) {
+    if (cuilYaExiste) {
       setError("Este CUIL ya se encuentra registrado. Si ya sos socio, intentá recuperar tu contraseña.");
       setLoading(false);
       return; 
