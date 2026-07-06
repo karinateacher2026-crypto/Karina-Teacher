@@ -14,7 +14,7 @@ export default function RecuperarPassword() {
     setLoading(true)
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `https://www.butterfliesenglishclasses.com.ar/portal/actualizar-password`,
+      redirectTo: `${window.location.origin}/portal/actualizar-password`,
     })
 
     if (error) {

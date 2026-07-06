@@ -152,12 +152,21 @@ export default function TeacherAsistenciaPage() {
     if (!practiceToSave || isSaving) return;
     setIsSaving(true);
     try {
-      const rows = Object.entries(attendanceRecord).map(([playerId, status]) => ({
-        practice_id: practiceToSave.id,
-        player_id: playerId,
-        professor_id: teacher.id,
-        status: status
-      }));
+      // Estandarización con clubes: registrar solo alumnos válidos (activos y de la categoría de la clase)
+      const validPlayerIds = allPlayers
+        .filter(p => p.category_id === selectedCategoryId && p.status === 'active')
+        .map(p => p.id);
+
+      const rows = Object.entries(attendanceRecord)
+        .filter(([playerId]) => validPlayerIds.includes(playerId))
+        .map(([playerId, status]) => ({
+          practice_id: practiceToSave.id,
+          player_id: playerId,
+          professor_id: teacher.id,
+          status: status
+        }));
+
+      if (rows.length === 0) throw new Error("No hay alumnos válidos para registrar asistencia en esta clase.");
 
       const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'practice_id,player_id' });
       if (error) throw error;

@@ -204,7 +204,7 @@ export default function PerfilSocioPage() {
     if (!formData.cuil) return setFormError('Falta completar: CUIL');
     if (!formData.birth_date) return setFormError('Falta completar: Fecha de Nacimiento');
     if (!formData.gender) return setFormError('Falta completar: Género');
-    if (selectedDeportes.length === 0) return setFormError('Debes elegir al menos un idioma');
+    if (user?.role?.includes('player') && selectedDeportes.length === 0) return setFormError('Debes elegir al menos un idioma');
     if (!formData.emergency_contact_name) return setFormError('Falta completar: Contacto de Emergencia');
     if (!formData.emergency_contact) return setFormError('Falta completar: Teléfono de Emergencia');
 
@@ -220,13 +220,15 @@ export default function PerfilSocioPage() {
     }
 
     try {
-      const deportesAFijar = Array.from(new Set(selectedDeportes.map(id => Number(id))));
-      const { error: rpcError } = await supabase.rpc('sync_user_sports', {
-          p_user_id: user.id,
-          p_deporte_ids: deportesAFijar
-      });
-
-      if (rpcError) throw rpcError;
+      // Solo sincronizar idiomas si el usuario también es player (a un profe puro no le corresponde)
+      if (user?.role?.includes('player')) {
+        const deportesAFijar = Array.from(new Set(selectedDeportes.map(id => Number(id))));
+        const { error: rpcError } = await supabase.rpc('sync_user_sports', {
+            p_user_id: user.id,
+            p_deporte_ids: deportesAFijar
+        });
+        if (rpcError) throw rpcError;
+      }
       
       let combinedPayerNames = null;
       let combinedPayerCuils = null;
@@ -396,6 +398,7 @@ export default function PerfilSocioPage() {
             <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-700 uppercase tracking-[0.2em] mb-4"><User size={16} /> Información Personal</h4>
             <div className="space-y-4 text-left">
               
+              {user?.role?.includes('player') && (
               <div className={`p-6 bg-indigo-50/50 rounded-2xl border border-indigo-100 mb-2 transition-all ${isEditing ? 'opacity-100' : 'opacity-80'} text-left`}>
                 <h4 className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-4">
                   <Trophy size={16}/> Idiomas Asignados <span className="text-red-500 font-black text-xs">*</span>
@@ -426,6 +429,7 @@ export default function PerfilSocioPage() {
                   </p>
                 )}
               </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                 <div className="space-y-1.5 text-left">

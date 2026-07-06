@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient'; // Asegurate de que la ruta sea correcta
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
@@ -17,8 +17,10 @@ export default function DivisionesPage() {
   // playerEnrolledAt: "player_id|category_id" → enrolled_at (YYYY-MM-DD)
   const [playerEnrolledAt, setPlayerEnrolledAt] = useState<Record<string, string>>({});
   const [initialLoading, setInitialLoading] = useState(true);
+  const fetchIdRef = useRef(0);
 
   const loadData = useCallback(async () => {
+    const currentId = ++fetchIdRef.current;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return router.push('/');
@@ -33,7 +35,7 @@ export default function DivisionesPage() {
         .eq('professor_id', session.user.id);
 
       if (!assignments || assignments.length === 0) {
-        setInitialLoading(false);
+        if (currentId === fetchIdRef.current) setInitialLoading(false);
         return;
       }
 
@@ -43,6 +45,7 @@ export default function DivisionesPage() {
         deporteName: a.categories.deportes?.name || 'Sin Deporte',
       })).filter(Boolean);
 
+      if (currentId !== fetchIdRef.current) return;
       setCategories(profeCats);
       const myCategoryIds = profeCats.map(c => c.id);
 
@@ -130,7 +133,7 @@ export default function DivisionesPage() {
     } catch (err) {
       console.error("Error cargando datos:", err);
     } finally {
-      setInitialLoading(false);
+      if (currentId === fetchIdRef.current) setInitialLoading(false);
     }
   }, [router]);
 

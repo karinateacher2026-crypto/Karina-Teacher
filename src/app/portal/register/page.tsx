@@ -147,7 +147,7 @@ export default function Register() {
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: 'https://www.butterfliesenglishclasses.com.ar/portal',
+          emailRedirectTo: `${window.location.origin}/portal`,
         },
       })
 

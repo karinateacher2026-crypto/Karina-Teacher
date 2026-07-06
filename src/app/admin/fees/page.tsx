@@ -154,10 +154,10 @@ export default function AdminFees() {
 
  useEffect(() => {
     if (selectedSport) {
-      // Filtramos por idioma y EXCLUIMOS cualquier curso que contenga la palabra "particular"
-      const filtered = dbCategories.filter(c => 
-        c.deportes?.name === selectedSport && 
-        !c.name.toLowerCase().includes('particular')
+      // Filtramos por idioma y EXCLUIMOS los cursos por-visita (FLY HIGHER... ACTIVITIES FOR ALL...), que no pagan cuota mensual sino por cada asistencia
+      const filtered = dbCategories.filter(c =>
+        c.deportes?.name === selectedSport &&
+        !c.name.toLowerCase().includes('activities for all')
       )
       setAvailableCatsForMassive(filtered)
       setMassiveCats([]) 

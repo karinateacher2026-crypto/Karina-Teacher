@@ -17,6 +17,8 @@ export default function AdminLayout({
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true) // Estado para evitar parpadeo
+  const [unassignedCount, setUnassignedCount] = useState(0)
+  const [pendingInboxCount, setPendingInboxCount] = useState(0)
 
   // --- CANDADO DE SEGURIDAD ---
   useEffect(() => {
@@ -27,6 +29,18 @@ export default function AdminLayout({
         router.push('/')
       } else {
         setIsLoading(false)
+
+        const { count } = await supabase
+          .from('user_categories')
+          .select('*', { count: 'exact', head: true })
+          .is('category_id', null)
+        setUnassignedCount(count || 0)
+
+        const { data: pendingData } = await supabase
+          .from('payments')
+          .select('id')
+          .eq('status', 'pending')
+        setPendingInboxCount(pendingData?.length || 0)
       }
     }
     checkUser()
@@ -105,7 +119,6 @@ export default function AdminLayout({
               <Link
                 key={item.name}
                 href={item.href}
-                prefetch={false}  // <--- ¡ESTA ES LA LÍNEA MÁGICA QUE FALTA!
                 onClick={() => setIsMobileMenuOpen(false)} // Cierra el menú al clickear en móvil
                 className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${
                   isActive
@@ -114,7 +127,17 @@ export default function AdminLayout({
                 }`}
               >
                 <Icon className={`mr-3 h-5 w-5 transition-transform group-hover:scale-110 flex-shrink-0 ${isActive ? 'text-orange-400' : ''}`} />
-                {item.name}
+                <span className="flex-1">{item.name}</span>
+                {item.href === '/admin/categories' && unassignedCount > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 bg-red-500 text-white text-[10px] font-black rounded-full">
+                    {unassignedCount}
+                  </span>
+                )}
+                {item.href === '/admin/inbox' && pendingInboxCount > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 bg-red-500 text-white text-[10px] font-black rounded-full">
+                    {pendingInboxCount}
+                  </span>
+                )}
               </Link>
             )
           })}

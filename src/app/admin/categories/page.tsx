@@ -123,7 +123,14 @@ export default function AsignacionCategorias() {
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 px-2">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Estudiantes</h1>
-          <p className="mt-2 text-gray-500">Gestión de cursos del Instituto.</p>
+          <p className="mt-2 text-gray-500 flex items-center gap-2">
+            Gestión de cursos del Instituto.
+            {userCategories.filter((r: any) => !r.category_id).length > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 bg-red-500 text-white text-xs font-black rounded-full shadow-sm">
+                {userCategories.filter((r: any) => !r.category_id).length}
+              </span>
+            )}
+          </p>
         </div>
 
         <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row items-center gap-4">

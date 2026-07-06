@@ -258,6 +258,7 @@ export default function EstadoCuentaPage() {
                                         <p className="text-[10px] text-gray-500 font-medium text-left">{format(parseISO(p.date), 'dd/MM/yy', { locale: es })}</p>
                                         {isPending && <span className="text-orange-500 text-[9px] font-bold uppercase tracking-wider text-left">Pendiente</span>}
                                         {isRejected && <span className="text-gray-400 text-[9px] font-bold uppercase tracking-wider text-left">Rechazado</span>}
+                                        {isRejected && p.notes && <span className="text-red-400 text-[9px] font-medium italic text-left">— {p.notes.replace(/^Rechazado:\s*/i, '')}</span>}
                                     </div>
                                 </div>
                             </div>

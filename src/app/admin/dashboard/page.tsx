@@ -350,7 +350,7 @@ export default function AdminDashboard() {
                 <option value="female">Femenino</option>
             </select>
 
-            <select className="bg-gray-50 font-bold text-gray-600 outline-none text-xs cursor-pointer py-1.5 px-3 rounded-lg border border-gray-100 focus:border-indigo-300 text-left max-w-[130px] md:max-w-none" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+            <select className="bg-gray-50 font-bold text-gray-600 outline-none text-xs cursor-pointer py-1.5 px-3 rounded-lg border border-gray-100 focus:border-indigo-300 text-left max-w-[130px] md:max-w-[180px]" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
                 <option value="all">Todos los cursos</option>
                 {filteredCategories.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>

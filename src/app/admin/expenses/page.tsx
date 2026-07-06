@@ -92,9 +92,9 @@ useEffect(() => {
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
     
-    const { data: expData } = await supabase.from('expenses').select('amount, date, payment_method').gte('date', startOfYear);
+    const { data: expData } = await supabase.from('transactions').select('amount, date, payment_method').eq('type', 'expense').gte('date', startOfYear);
     const { data: payData } = await supabase.from('payments').select('amount, created_at, method, status').gte('created_at', startOfYear);
-    const { data: incExtraData } = await supabase.from('incomes').select('amount, date, payment_method').gte('date', startOfYear);
+    const { data: incExtraData } = await supabase.from('transactions').select('amount, date, payment_method').eq('type', 'income').gte('date', startOfYear);
 
     const monthlyData = MONTHS.map((month, index) => {
       const monthExpenses = expData?.filter(e => 
@@ -146,11 +146,11 @@ useEffect(() => {
       endDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59).toISOString();
     }
 
-    let query = supabase.from('expenses').select('*');
+    let query = supabase.from('transactions').select('*').eq('type', 'expense');
     let paymentQuery = supabase.from('payments').select('amount, method, status');
     
     // Cambiamos el select para traer todo de incomes para poder mostrarlo en la tabla
-    let incomeExtraQuery = supabase.from('incomes').select('*');
+    let incomeExtraQuery = supabase.from('transactions').select('*').eq('type', 'income');
 
     if (startDate) {
       query = query.gte('date', startDate);
@@ -220,15 +220,16 @@ useEffect(() => {
     if (!newExpense.amount || parseFloat(newExpense.amount) <= 0) return;
     
     setIsSaving(true);
-    const table = modalType === 'egreso' ? 'expenses' : 'incomes';
+    // Insertamos en 'transactions' distinguiendo egreso/ingreso con el campo 'type'
     
-    const { error } = await supabase.from(table).insert([{
+    const { error } = await supabase.from('transactions').insert([{
       category: newExpense.category,
       amount: parseFloat(newExpense.amount),
       // CAMBIO: Enviamos el string puro del input para evitar desfase de zona horaria
       date: newExpense.date, 
       payment_method: newExpense.payment_method,
-      notes: newExpense.notes
+      notes: newExpense.notes,
+      type: modalType === 'egreso' ? 'expense' : 'income'
     }]);
 
     if (!error) {
@@ -245,10 +246,10 @@ useEffect(() => {
     if (!deleteModal.id || !deleteModal.type) return;
     setIsDeleting(true);
     
-    const tableToDelete = deleteModal.type === 'ingreso' ? 'incomes' : 'expenses';
+    // Borramos de 'transactions' por id
 
     try {
-      const { error } = await supabase.from(tableToDelete).delete().eq('id', deleteModal.id);
+      const { error } = await supabase.from('transactions').delete().eq('id', deleteModal.id);
       if (!error) {
         setDeleteModal({ show: false, id: null, type: null });        
         fetchData();
@@ -382,22 +383,34 @@ useEffect(() => {
           </div>
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart margin={{ top: 0, right: 100, bottom: 0, left: 20 }}> 
-                <Pie 
-                  data={pieData} 
-                  innerRadius={35} 
-                  outerRadius={60} 
-                  paddingAngle={5} 
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="35%"
+                  innerRadius={55}
+                  outerRadius={90}
+                  paddingAngle={5}
                   dataKey="value"
-                  labelLine={true}
-                  label={renderCustomizedLabel}
+                  label={false}
+                  labelLine={false}
                 >
                   {pieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
                   ))}
                 </Pie>
                 <Tooltip formatter={(value: any) => `$${Number(value).toLocaleString('es-AR')}`} />
-                <Legend layout="vertical" verticalAlign="middle" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', paddingLeft: '20px' }} />
+                <Legend
+                  layout="vertical"
+                  verticalAlign="middle"
+                  align="right"
+                  iconType="circle"
+                  formatter={(value, entry: any) => {
+                    const total = pieData.reduce((s: number, d: any) => s + d.value, 0);
+                    const pct = total > 0 ? ((entry.payload.value / total) * 100).toFixed(0) : '0';
+                    return `${value} ${pct}%`;
+                  }}
+                  wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>

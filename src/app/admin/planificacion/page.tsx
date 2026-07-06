@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../lib/supabaseClient'
 import {
   Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight,
@@ -36,6 +36,7 @@ export default function AdminPlanner() {
 
   // Categorías para el filtro de la agenda
   const [filterCategories, setFilterCategories] = useState<any[]>([]);
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
 
   const [assignedProfNames, setAssignedProfNames] = useState<string[]>([]);
 
@@ -73,6 +74,11 @@ export default function AdminPlanner() {
       if (sedesData) setSedes(sedesData);
       const { data: deportesData } = await supabase.from('deportes').select('*').order('name');
       if (deportesData) setDeportes(deportesData);
+      const { data: yearsData } = await supabase.from('practices').select('scheduled_date').order('scheduled_date');
+      if (yearsData) {
+        const unique = [...new Set(yearsData.map((p: any) => new Date(p.scheduled_date).getFullYear()))].sort();
+        setAvailableYears(unique);
+      }
     };
     loadStaticData();
   }, []);
@@ -89,8 +95,12 @@ export default function AdminPlanner() {
     loadFilterCategories();
   }, [filterSedeId, filterDeporteId]);
 
+  // Ref para descartar respuestas viejas cuando cambian filtros/página (evita race condition)
+  const fetchIdRef = useRef(0);
+
   // Función principal paginada con filtros server-side
   const loadPractices = useCallback(async (page: number) => {
+    const fetchId = ++fetchIdRef.current;
     setIsLoadingPractices(true);
     try {
       const todayStr = getTodayStr();
@@ -102,6 +112,7 @@ export default function AdminPlanner() {
         if (filterSedeId !== '') catQuery = catQuery.eq('sede_id', filterSedeId);
         if (filterDeporteId !== '') catQuery = catQuery.eq('deporte_id', filterDeporteId);
         const { data: catData } = await catQuery;
+        if (fetchId !== fetchIdRef.current) return;
         categoryIds = catData?.map((c: any) => c.id) || [];
         if (categoryIds.length === 0) {
           setPractices([]);
@@ -116,8 +127,29 @@ export default function AdminPlanner() {
 
       if (categoryIds !== null) query = query.in('category_id', categoryIds);
       if (filterCatId !== '') query = query.eq('category_id', Number(filterCatId));
-      if (filterMonth !== '') query = query.like('scheduled_date', `%-${filterMonth}-%`);
-      if (filterYear !== '') query = query.like('scheduled_date', `${filterYear}-%`);
+      // Filtro de mes/año — scheduled_date es timestamptz, se usan rangos con offset Argentina (-03:00)
+      const tz = '-03:00';
+      if (filterYear !== '' && filterMonth !== '') {
+        const y = Number(filterYear);
+        const m = Number(filterMonth);
+        const nextY = m === 12 ? y + 1 : y;
+        const nextM = m === 12 ? 1 : m + 1;
+        const start = `${filterYear}-${String(m).padStart(2, '0')}-01T00:00:00${tz}`;
+        const end   = `${nextY}-${String(nextM).padStart(2, '0')}-01T00:00:00${tz}`;
+        query = query.gte('scheduled_date', start).lt('scheduled_date', end);
+      } else if (filterYear !== '') {
+        const start = `${filterYear}-01-01T00:00:00${tz}`;
+        const end   = `${Number(filterYear) + 1}-01-01T00:00:00${tz}`;
+        query = query.gte('scheduled_date', start).lt('scheduled_date', end);
+      } else if (filterMonth !== '') {
+        const y = new Date().getFullYear();
+        const m = Number(filterMonth);
+        const nextY = m === 12 ? y + 1 : y;
+        const nextM = m === 12 ? 1 : m + 1;
+        const start = `${y}-${String(m).padStart(2, '0')}-01T00:00:00${tz}`;
+        const end   = `${nextY}-${String(nextM).padStart(2, '0')}-01T00:00:00${tz}`;
+        query = query.gte('scheduled_date', start).lt('scheduled_date', end);
+      }
       if (timeFilter === 'future') query = query.gte('scheduled_date', todayStr);
       else if (timeFilter === 'past') query = query.lt('scheduled_date', todayStr);
 
@@ -126,13 +158,14 @@ export default function AdminPlanner() {
         .order('scheduled_date', { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
 
+      if (fetchId !== fetchIdRef.current) return;
       if (error) throw error;
       setPractices(data || []);
       setTotalCount(count || 0);
     } catch (err) {
       console.error('Error al cargar eventos:', err);
     } finally {
-      setIsLoadingPractices(false);
+      if (fetchId === fetchIdRef.current) setIsLoadingPractices(false);
     }
   }, [filterSedeId, filterDeporteId, filterCatId, filterMonth, filterYear, timeFilter]);
 
@@ -600,7 +633,7 @@ export default function AdminPlanner() {
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase outline-none shadow-sm text-slate-700 min-w-[100px]"
               >
                 <option value="">Año: Todos</option>
-                {yearOptions.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                {(availableYears.length > 0 ? availableYears : yearOptions).map(y => <option key={y} value={String(y)}>{y}</option>)}
               </select>
               
               <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-sm">

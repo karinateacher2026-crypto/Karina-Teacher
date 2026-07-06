@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { Loader2, ChevronLeft, ChevronRight, Tag, Search } from 'lucide-react';
@@ -13,6 +13,7 @@ export default function AsistenciaPage() {
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const [scheduledPractices, setScheduledPractices] = useState<any[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
+  const fetchIdRef = useRef(0);
 
   // 1. Buscamos el usuario logueado y TODAS sus categorías (puede tener varios idiomas)
   useEffect(() => {
@@ -44,6 +45,7 @@ export default function AsistenciaPage() {
   useEffect(() => {
     const fetchAttendanceAndPractices = async () => {
       if (!user?.id || !user?.category_ids?.length) return;
+      const currentId = ++fetchIdRef.current;
 
      try {
         setCalendarLoading(true);
@@ -71,12 +73,13 @@ export default function AsistenciaPage() {
           };
         }) || [];
 
+        if (currentId !== fetchIdRef.current) return;
         if (practicesRes.data) setScheduledPractices(practicesRes.data);
         setAttendanceData(combinedData);
       } catch (err) {
         console.error("Error cargando el calendario de asistencia:", err);
       } finally {
-        setCalendarLoading(false);
+        if (currentId === fetchIdRef.current) setCalendarLoading(false);
       }
     };
     
@@ -109,9 +112,12 @@ export default function AsistenciaPage() {
         .filter(p => !selectedCategoryId || p.category_id === selectedCategoryId)
         .filter(p => p.scheduled_date.startsWith(dayStr))
         .filter(p => {
-          // Alumno inactivo: solo ve eventos con registro de asistencia real (de cuando estuvo activo).
-          if (user?.status !== 'inactive') return true;
-          return attendanceData.some(a => a.practice_id === p.id);
+          const hasRecord = attendanceData.some(a => a.practice_id === p.id);
+          // Alumno inactivo: solo ve eventos con su registro de asistencia (de cuando estuvo activo).
+          if (user?.status === 'inactive') return hasRecord;
+          // Alumno activo: oculta las pasadas sin lista tomada; las futuras/próximas sí se muestran (agenda de clases).
+          if (dayStr < todayStr && !hasRecord) return false;
+          return true;
         });
       const isPast = dayStr < todayStr;
       const isToday = dayStr === todayStr;

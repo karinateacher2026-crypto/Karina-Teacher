@@ -14,6 +14,7 @@ export default function InformarPagoPage() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+  const [errorModal, setErrorModal] = useState<string | null>(null);
 
   // Estados del pago
   const [amount, setAmount] = useState('');
@@ -51,8 +52,12 @@ export default function InformarPagoPage() {
   }, [router]);
 
   const handlePreSubmit = (e: React.FormEvent) => {
-    e.preventDefault(); 
-    if (!amount || !file) return; 
+    e.preventDefault();
+    if (!amount || !file) return;
+    if (parseFloat(amount) <= 0) {
+      setErrorModal('El monto ingresado debe ser mayor a $0. Por favor revisá el importe antes de continuar.');
+      return;
+    }
 
     if (file.size > 2.5 * 1024 * 1024) {
       setMessage({ type: 'error', text: 'El comprobante debe pesar menos de 2.5MB' });
@@ -68,7 +73,12 @@ export default function InformarPagoPage() {
     setUploading(true);
     try {
       let publicUrl = null;
+      let fileHash: string | null = null;
       if (file) {
+        const buffer = await file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        fileHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
         const fileName = `${user.id}/${Date.now()}.${file.name.split('.').pop()}`;
         const { error: uploadError } = await supabase.storage.from('receipts').upload(fileName, file);
         if (uploadError) throw uploadError;
@@ -100,7 +110,8 @@ export default function InformarPagoPage() {
         date: new Date().toISOString(), 
         proof_url: publicUrl,
         category_snapshot: finalCategory,
-        sport_snapshot: finalSport
+        sport_snapshot: finalSport,
+        file_hash: fileHash
       });
 
       if (insertError) throw insertError;
@@ -147,6 +158,24 @@ export default function InformarPagoPage() {
         <div className="absolute -top-4 left-0 right-0 z-50 flex justify-center animate-in fade-in slide-in-from-top-4">
           <div className="bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg font-bold text-sm">
             {message.text}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ERROR MONTO */}
+      {errorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setErrorModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-center mb-4">
+              <div className="h-16 w-16 bg-red-50 rounded-full flex items-center justify-center">
+                <AlertTriangle size={30} className="text-red-500" />
+              </div>
+            </div>
+            <h3 className="text-lg font-black text-gray-900 uppercase mb-2">Monto inválido</h3>
+            <p className="text-gray-500 text-sm font-medium mb-6">{errorModal}</p>
+            <button onClick={() => setErrorModal(null)} className="w-full py-3 bg-red-500 text-white rounded-xl font-black uppercase text-xs hover:bg-red-600 transition active:scale-95">
+              Entendido
+            </button>
           </div>
         </div>
       )}
@@ -275,6 +304,11 @@ export default function InformarPagoPage() {
               <p className="text-orange-600/80 text-[11px] font-bold uppercase tracking-wider px-2 leading-relaxed mt-2">
                 ¿Coincide exactamente con el comprobante adjunto?
               </p>
+              {(parseFloat(amount) < 1000 || parseFloat(amount) > 1000000) && (
+                <p className="mt-3 text-yellow-700 text-[11px] font-bold bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2">
+                  ⚠️ {parseFloat(amount) < 1000 ? 'El monto es inusualmente bajo (menos de $1.000).' : 'El monto es inusualmente alto (más de $1.000.000).'} Verificá antes de confirmar.
+                </p>
+              )}
             </div>
             <div className="p-6 mt-2 flex gap-3">
               <button 

@@ -116,24 +116,24 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-6 min-w-[256px] lg:min-w-0 text-left">
-  {/* BOTONES CONVERTIDOS A LINKS CON PREFETCH APAGADO */}
-  <Link prefetch={false} href="/portal/estado-cuenta" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/estado-cuenta' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
+  {/* BOTONES CONVERTIDOS A LINKS */}
+  <Link href="/portal/estado-cuenta" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/estado-cuenta' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
     <LayoutDashboard size={20} /> {sidebarOpen && <span>Estado de cuenta</span>}
   </Link>
   
-  <Link prefetch={false} href="/portal/perfil" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/perfil' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
+  <Link href="/portal/perfil" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/perfil' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
     <User size={20} /> {sidebarOpen && <span>Mi Perfil</span>}
   </Link>
   
-  <Link prefetch={false} href="/portal/informar-pago" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/informar-pago' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
+  <Link href="/portal/informar-pago" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/informar-pago' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
     <Upload size={20} /> {sidebarOpen && <span>Informar Pago</span>}
   </Link>
   
-  <Link prefetch={false} href="/portal/asistencia" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/asistencia' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
+  <Link href="/portal/asistencia" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/asistencia' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
     <Calendar size={20} /> {sidebarOpen && <span>Asistencia</span>}
   </Link>
 
-  <Link prefetch={false} href="/portal/terminos" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/terminos' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
+  <Link href="/portal/terminos" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/terminos' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
     <Shield size={20} /> {sidebarOpen && <span>Términos y Condiciones</span>}
   </Link>
 </nav>
