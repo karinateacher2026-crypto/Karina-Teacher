@@ -28,14 +28,15 @@ function toCSV(rows: any[]): string {
 
 export async function POST(request: Request) {
   // Protección: solo el cron de Supabase puede llamar este endpoint
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const reqUrl = new URL(request.url);
+  const provided = (request.headers.get('authorization') || '').replace(/^Bearer\s+/, '') || reqUrl.searchParams.get('secret') || '';
+  if (provided !== process.env.CRON_SECRET) {
     return NextResponse.json({
       error: 'No autorizado',
       debug: {
         secretPresente: !!process.env.CRON_SECRET,
         secretLargo: (process.env.CRON_SECRET || '').length,
-        headerRecibido: authHeader ? `${authHeader.slice(0, 7)}...(${authHeader.length} chars)` : null,
+        recibidoLargo: provided.length,
       },
     }, { status: 401 });
   }
