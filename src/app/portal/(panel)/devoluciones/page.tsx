@@ -35,9 +35,9 @@ export default function DevolucionesSocioPage() {
     load();
   }, []);
 
-  const yearOf = (p: any) => { const m = String(p || '').match(/(\d{4})/); return m ? Number(m[1]) : 0; };
-  const availableYears = Array.from(new Set([new Date().getFullYear(), ...items.map(f => yearOf(f.period)).filter(Boolean)])).sort((a, b) => b - a);
-  const shown = items.filter(f => yearOf(f.period) === selectedYear);
+  const yearOf = (d: any) => d ? new Date(d).getFullYear() : 0;
+  const availableYears = Array.from(new Set([new Date().getFullYear(), ...items.map(f => yearOf(f.created_at)).filter(Boolean)])).sort((a, b) => b - a);
+  const shown = items.filter(f => yearOf(f.created_at) === selectedYear);
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
 
@@ -71,8 +71,8 @@ export default function DevolucionesSocioPage() {
                 <div key={f.id} className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-4 md:p-5">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-[#1e1b4b] uppercase text-sm tracking-tight leading-tight break-words">{f.categories?.name || 'Curso'}</p>
-                      <p className="text-[11px] font-bold text-indigo-500 uppercase truncate">{f.period || ''}{f.categories?.deportes?.name ? ` · ${f.categories.deportes.name}` : ''}</p>
+                      <p className="font-black text-[#1e1b4b] uppercase text-sm tracking-tight leading-tight break-words">{f.period || 'Devolución'}</p>
+                      <p className="text-[11px] font-bold text-indigo-500 uppercase truncate">{f.categories?.name || 'Curso'}{f.categories?.deportes?.name ? ` · ${f.categories.deportes.name}` : ''}</p>
                     </div>
                     <p className="text-[10px] text-slate-400 font-bold shrink-0 whitespace-nowrap">{f.created_at ? new Date(f.created_at).toLocaleDateString('es-AR') : ''}</p>
                   </div>
