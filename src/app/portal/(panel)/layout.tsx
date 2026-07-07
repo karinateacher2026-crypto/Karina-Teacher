@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { CLIENT_CONFIG } from '@/conf/clientConfig';
 import { 
   LayoutDashboard, User, LogOut, Menu, Loader2, 
-  Upload, Calendar, Timer, Shield, X, Trophy
+  Upload, Calendar, Timer, Shield, X, Trophy, Mic
 } from 'lucide-react';
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -133,6 +133,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     <Calendar size={20} /> {sidebarOpen && <span>Asistencia</span>}
   </Link>
 
+  <Link href="/portal/devoluciones" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/devoluciones' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
+    <Mic size={20} /> {sidebarOpen && <span>Devoluciones</span>}
+  </Link>
+
   <Link href="/portal/terminos" onClick={closeSidebarMobile} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition text-left ${pathname === '/portal/terminos' ? 'bg-[#4f46e5] text-white font-bold shadow-lg' : 'text-gray-400 hover:bg-white/5'}`}>
     <Shield size={20} /> {sidebarOpen && <span>Términos y Condiciones</span>}
   </Link>
@@ -178,7 +182,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 lg:hidden text-left" onClick={() => setSidebarOpen(false)}></div>}
 
       {/* ---------------- ÁREA DE CONTENIDO DINÁMICO ---------------- */}
-      <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-4 md:p-8 text-left bg-gray-50`}>
+      <main className={`flex-1 min-w-0 transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-4 md:p-8 text-left bg-gray-50`}>
         {/* Navbar superior para móviles */}
         <div className="lg:hidden mb-4 flex items-center gap-3 text-left">
           <button onClick={() => setSidebarOpen(true)} className="p-2 bg-white rounded-lg shadow-sm border border-gray-200 text-[#1e1b4b] text-left">

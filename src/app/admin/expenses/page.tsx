@@ -12,6 +12,14 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Ba
 import Swal from 'sweetalert2';
 
 export default function ExpensesPage() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   const [expenses, setExpenses] = useState<any[]>([]);
   const [totalIncomes, setTotalIncomes] = useState(0); // Este será Cuotas + Ingresos Extra
   const [loading, setLoading] = useState(true);
@@ -92,9 +100,9 @@ useEffect(() => {
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
     
-    const { data: expData } = await supabase.from('transactions').select('amount, date, payment_method').eq('type', 'expense').gte('date', startOfYear);
-    const { data: payData } = await supabase.from('payments').select('amount, created_at, method, status').gte('created_at', startOfYear);
-    const { data: incExtraData } = await supabase.from('transactions').select('amount, date, payment_method').eq('type', 'income').gte('date', startOfYear);
+    const { data: expData } = await supabase.from('transactions').select('amount, date, payment_method').eq('type', 'expense').gte('date', startOfYear).limit(10000);
+    const { data: payData } = await supabase.from('payments').select('amount, created_at, method, status').gte('created_at', startOfYear).limit(10000);
+    const { data: incExtraData } = await supabase.from('transactions').select('amount, date, payment_method').eq('type', 'income').gte('date', startOfYear).limit(10000);
 
     const monthlyData = MONTHS.map((month, index) => {
       const monthExpenses = expData?.filter(e => 
@@ -146,11 +154,11 @@ useEffect(() => {
       endDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59).toISOString();
     }
 
-    let query = supabase.from('transactions').select('*').eq('type', 'expense');
-    let paymentQuery = supabase.from('payments').select('amount, method, status');
+    let query = supabase.from('transactions').select('*').eq('type', 'expense').limit(10000);
+    let paymentQuery = supabase.from('payments').select('amount, method, status').limit(10000);
     
     // Cambiamos el select para traer todo de incomes para poder mostrarlo en la tabla
-    let incomeExtraQuery = supabase.from('transactions').select('*').eq('type', 'income');
+    let incomeExtraQuery = supabase.from('transactions').select('*').eq('type', 'income').limit(10000);
 
     if (startDate) {
       query = query.gte('date', startDate);
@@ -386,9 +394,9 @@ useEffect(() => {
               <PieChart>
                 <Pie
                   data={pieData}
-                  cx="35%"
-                  innerRadius={55}
-                  outerRadius={90}
+                  cx={isMobile ? '50%' : '35%'}
+                  innerRadius={isMobile ? 40 : 55}
+                  outerRadius={isMobile ? 60 : 90}
                   paddingAngle={5}
                   dataKey="value"
                   label={false}

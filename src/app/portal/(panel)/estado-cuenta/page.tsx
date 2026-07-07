@@ -8,7 +8,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { 
   Loader2, Clock, RotateCw, XCircle, Settings, 
-  ArrowDownLeft, ArrowUpRight, Eye, X, ExternalLink, CreditCard
+  ArrowDownLeft, ArrowUpRight, Eye, X, ExternalLink
 } from 'lucide-react';
 
 export default function EstadoCuentaPage() {
@@ -144,22 +144,10 @@ export default function EstadoCuentaPage() {
                         ${Math.abs(visualBalance).toLocaleString()}
                     </h3>
                 </div>
-
-                {/* BOTÓN PAGAR: Solo aparece si está en rojo (debe) */}
-                {visualBalance < 0 && (
-                    <button
-                        onClick={() => router.push('/portal/informar-pago')}
-                        className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-sm transition-all duration-200 group active:scale-95 sm:mt-5 w-full sm:w-auto"
-                    >
-                        <CreditCard size={14} className="group-hover:animate-pulse" />
-                        <span>Pagar</span>
-                        <ArrowUpRight size={14} className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                    </button>
-                )}
             </div>
 
             <div className="text-left md:text-right border-t md:border-t-0 pt-3 md:pt-0 w-full md:w-auto text-left">
-              <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase text-left mb-2">TU CATEGORÍA</p>
+              <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase text-left mb-2">TU CURSO</p>
               <div className="flex flex-wrap gap-4 md:justify-end">
                 {userSportsInfo.length > 0 ? userSportsInfo.map((info, idx) => (
                   <div key={idx} className="flex flex-col border-l-2 border-orange-500 pl-3 md:border-l-0 md:border-r-2 md:pl-0 md:pr-3 text-left md:text-right">

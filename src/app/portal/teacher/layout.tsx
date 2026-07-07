@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 import {
   ClipboardCheck, LogOut, Calendar as CalendarIcon,
-  Users, History, Menu, X, User
+  Users, History, Menu, X, User, Mic
 } from 'lucide-react';
 import { CLIENT_CONFIG } from '@/conf/clientConfig';
 
@@ -84,7 +84,8 @@ export default function TeacherLayout({
             { id: 'calendario', icon: CalendarIcon, label: 'Calendario', href: '/portal/teacher/calendario' },
             { id: 'asistencia', icon: ClipboardCheck, label: 'Asistencia', href: '/portal/teacher/asistencia' },
             { id: 'divisiones', icon: Users, label: 'Divisiones', href: '/portal/teacher/divisiones' },
-            { id: 'historial', icon: History, label: 'Historial', href: '/portal/teacher/historial' }
+            { id: 'historial', icon: History, label: 'Historial', href: '/portal/teacher/historial' },
+            { id: 'devoluciones', icon: Mic, label: 'Devoluciones', href: '/portal/teacher/devoluciones' }
           ].map((item: any) => {
             const Icon = item.icon;
             // Chequeamos si la ruta actual coincide con el href

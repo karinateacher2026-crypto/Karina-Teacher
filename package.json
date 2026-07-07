@@ -19,6 +19,7 @@
     "react-dom": "19.2.3",
     "react-onesignal": "^3.4.6",
     "recharts": "^3.7.0",
+    "resend": "^6.17.1",
     "sweetalert2": "^11.26.20",
     "xlsx": "^0.18.5"
   },
