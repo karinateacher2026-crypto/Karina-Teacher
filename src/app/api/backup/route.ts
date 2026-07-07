@@ -31,14 +31,7 @@ export async function POST(request: Request) {
   const reqUrl = new URL(request.url);
   const provided = (request.headers.get('authorization') || '').replace(/^Bearer\s+/, '') || reqUrl.searchParams.get('secret') || '';
   if (provided !== process.env.CRON_SECRET) {
-    return NextResponse.json({
-      error: 'No autorizado',
-      debug: {
-        secretPresente: !!process.env.CRON_SECRET,
-        secretLargo: (process.env.CRON_SECRET || '').length,
-        recibidoLargo: provided.length,
-      },
-    }, { status: 401 });
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
   try {
