@@ -30,7 +30,14 @@ export async function POST(request: Request) {
   // Protección: solo el cron de Supabase puede llamar este endpoint
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    return NextResponse.json({
+      error: 'No autorizado',
+      debug: {
+        secretPresente: !!process.env.CRON_SECRET,
+        secretLargo: (process.env.CRON_SECRET || '').length,
+        headerRecibido: authHeader ? `${authHeader.slice(0, 7)}...(${authHeader.length} chars)` : null,
+      },
+    }, { status: 401 });
   }
 
   try {
