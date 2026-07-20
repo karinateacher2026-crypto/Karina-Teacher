@@ -126,7 +126,7 @@ export default function AdminDashboard() {
 
     // 🚀 CONSULTA ÚNICA UNIFICADA Y BLINDADA CON LÍMITE DE FECHA
     let query = supabase.from('payments')
-      .select('id, user_id, amount, method, status, date, users(name)')
+      .select('id, user_id, amount, method, status, date, users(name, family_id)')
       .gte('date', startDate.toISOString())
       .lte('date', endDate.toISOString())
 
@@ -154,8 +154,11 @@ export default function AdminDashboard() {
     const debtorList: {name: string, balance: number}[] = [];
     
     if (filteredMovements.length > 0) {
-      const balanceMap = new Map<string, {name: string, balance: number}>();
-      
+      // La deuda se agrupa por GRUPO FAMILIAR, no por alumno. Si se agrupara por
+      // user_id, el integrante que nunca paga figura como moroso aunque la familia
+      // esté al día, y la deuda total del instituto se cuenta dos veces.
+      const balanceMap = new Map<string, {name: string, balance: number, names: Set<string>}>();
+
       filteredMovements.forEach(m => {
         if (m.status === 'pending' || m.status === 'rejected') return;
 
@@ -164,8 +167,21 @@ export default function AdminDashboard() {
         }
 
         const user = m.users as any;
-        const currentData = balanceMap.get(m.user_id) || { name: user?.name || 'Socio', balance: 0 };
-        balanceMap.set(m.user_id, { ...currentData, balance: currentData.balance + m.amount });
+        const groupKey = user?.family_id || m.user_id;
+        const currentData = balanceMap.get(groupKey) || { name: user?.name || 'Socio', balance: 0, names: new Set<string>() };
+        if (user?.name) currentData.names.add(user.name);
+        balanceMap.set(groupKey, {
+          ...currentData,
+          balance: currentData.balance + m.amount,
+        });
+      });
+
+      // Para el listado, un grupo familiar se muestra con los nombres de sus
+      // integrantes en vez del de quien casualmente vino primero.
+      balanceMap.forEach((data, key) => {
+        if (data.names.size > 1) {
+          balanceMap.set(key, { ...data, name: Array.from(data.names).join(' / ') });
+        }
       });
 
       balanceMap.forEach((userData) => {
@@ -209,16 +225,45 @@ export default function AdminDashboard() {
       // Le sacamos las columnas conflictivas (category, sport, birth_date) y dejamos solo las seguras
       const { data, error } = await supabase
           .from('users')
-          .select('id, name, cuil, account_balance')
+          .select('id, name, cuil, account_balance, family_id')
           .contains('role', ['player'])
           .or(`name.ilike.%${term}%,cuil.ilike.%${term}%`)
           .limit(5)
-          
+
       if (error) {
           console.error("Error en Caja Rápida:", error)
       }
-      
-      setSearchResults(data || [])
+
+      const results = data || []
+
+      // Para los que tienen vínculo, la deuda que importa es la del grupo. Se
+      // resuelve con UNA sola consulta extra para todos los family_id del lote,
+      // en vez de una por alumno.
+      const familyIds = Array.from(new Set(results.map(u => u.family_id).filter(Boolean)))
+      const groupTotals = new Map<string, number>()
+      const groupCounts = new Map<string, number>()
+      if (familyIds.length > 0) {
+          const { data: members } = await supabase
+              .from('users')
+              .select('family_id, account_balance')
+              .in('family_id', familyIds)
+          members?.forEach(m => {
+              if (!m.family_id) return
+              groupTotals.set(m.family_id, (groupTotals.get(m.family_id) || 0) + (m.account_balance ?? 0))
+              groupCounts.set(m.family_id, (groupCounts.get(m.family_id) || 0) + 1)
+          })
+      }
+
+      setSearchResults(results.map(u => {
+          // Mismo criterio que el helper del portal: un family_id con un solo
+          // integrante no es un grupo.
+          const inFamily = !!(u.family_id && (groupCounts.get(u.family_id) ?? 0) > 1)
+          return {
+              ...u,
+              group_balance: inFamily ? groupTotals.get(u.family_id)! : (u.account_balance ?? 0),
+              in_family: inFamily,
+          }
+      }))
   }
 
   const selectUser = (user: any) => { setQuickPayUser(user); setSearchTerm(''); setSearchResults([]) }
@@ -456,7 +501,10 @@ export default function AdminDashboard() {
                                   {searchResults.map(u => (
                                       <div key={u.id} onClick={() => selectUser(u)} className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center border-b border-gray-100 last:border-0 group text-left">
                                           <div className="text-left"><p className="font-bold text-sm text-gray-800 group-hover:text-indigo-700 text-left">{u.name}</p><p className="text-xs text-gray-500 text-left">CUIL: {u.cuil}</p></div>
-                                          <div className={`text-xs font-bold px-2 py-1 rounded border ${u.account_balance < 0 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'} text-left`}>{u.account_balance < 0 ? `Debe $${Math.abs(u.account_balance).toLocaleString()}` : 'Al día'}</div>
+                                          <div className={`text-xs font-bold px-2 py-1 rounded border ${u.group_balance < 0 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'} text-left`}>
+                                            {u.group_balance < 0 ? `Debe $${Math.abs(u.group_balance).toLocaleString()}` : 'Al día'}
+                                            {u.in_family && <span className="block text-[9px] font-medium opacity-70">grupo familiar</span>}
+                                          </div>
                                       </div>
                                   ))}
                               </div>
@@ -466,7 +514,13 @@ export default function AdminDashboard() {
                       <div className="p-4 bg-white rounded-lg flex justify-between items-center border border-indigo-200 shadow-sm text-left">
                             <div className="flex items-center gap-3 text-left">
                                 <div className="h-10 w-10 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-lg text-left">{quickPayUser.name.charAt(0)}</div>
-                                <div className="text-left"><p className="font-bold text-gray-800 text-left">{quickPayUser.name}</p><p className={`text-xs font-semibold ${quickPayUser.account_balance < 0 ? 'text-red-500' : 'text-green-600'} text-left`}>Saldo actual: ${quickPayUser.account_balance.toLocaleString()}</p></div>
+                                <div className="text-left">
+                                  <p className="font-bold text-gray-800 text-left">{quickPayUser.name}</p>
+                                  <p className={`text-xs font-semibold ${(quickPayUser.group_balance ?? quickPayUser.account_balance) < 0 ? 'text-red-500' : 'text-green-600'} text-left`}>
+                                    {quickPayUser.in_family ? 'Saldo del grupo: ' : 'Saldo actual: '}
+                                    ${(quickPayUser.group_balance ?? quickPayUser.account_balance).toLocaleString()}
+                                  </p>
+                                </div>
                             </div>
                             <button onClick={() => setQuickPayUser(null)} className="p-2 hover:bg-gray-100 text-gray-400 hover:text-red-500 rounded-lg transition text-left"><XCircle size={20} className="text-left"/></button>
                       </div>

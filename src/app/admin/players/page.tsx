@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabaseClient'
 import { Search, UserPlus, Edit2, Loader2, DollarSign, X, MapPin, ArrowDownCircle, ArrowUpCircle, UserCheck, Info, FileText, ShieldCheck, User, Shield, CheckCircle, Filter, Download, CreditCard, Plus, Trash2, Link as LinkIcon, Users, RefreshCw, Trophy, Check } from 'lucide-react'
 import { parseISO, format } from 'date-fns'
 import { CLIENT_CONFIG } from '@/conf/clientConfig'
+import { familyMembersOf, familyBalanceOf, hasFamily, firstName } from '@/lib/family'
 import { es } from 'date-fns/locale'
 import { CheckCircle2} from 'lucide-react'
 
@@ -16,9 +17,10 @@ interface Transaction {
  id: string; 
  type: 'payment' | 'fee' | 'adjustment'; 
  amount: number; 
- date: string; 
- description: string; 
- notes?: string; 
+ date: string;
+ description: string;
+ notes?: string;
+ owner?: string;
 }
 
 export default function PlayersPage() {
@@ -69,6 +71,14 @@ export default function PlayersPage() {
 
  const [selectedPlayerForStatement, setSelectedPlayerForStatement] = useState<Player | null>(null)
  const [playerTransactions, setPlayerTransactions] = useState<Transaction[]>([])
+ // Saldo individual del alumno abierto en el modal. Se separa del saldo del
+ // grupo porque es el único que puede escribirse de vuelta en users.
+ const [ownStatementBalance, setOwnStatementBalance] = useState(0)
+ const [statementIsFamily, setStatementIsFamily] = useState(false)
+ // El modal se abre antes de que resuelva la consulta de pagos. Sin esta bandera,
+ // en esa ventana se muestra el saldo individual que traía la fila de la lista y
+ // después salta al del grupo.
+ const [statementLoading, setStatementLoading] = useState(false)
  const [showAllTransactions, setShowAllTransactions] = useState(false)
  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
  
@@ -92,6 +102,9 @@ export default function PlayersPage() {
  const [siblingSearch, setSiblingSearch] = useState('')
  const [siblingResults, setSiblingResults] = useState<any[]>([])
  const [processingLink, setProcessingLink] = useState(false)
+ // Confirmación previa a vincular: guarda a quién se eligió y la lista completa
+ // de personas que van a quedar en el mismo grupo, incluidos los grupos previos.
+ const [linkConfirm, setLinkConfirm] = useState<{ target: any, members: { id: string, name: string }[] } | null>(null)
 
  // --- NUEVO: LÓGICA DE ASISTENCIA PARA ADMIN ---
 const [playerStats, setPlayerStats] = useState<Record<string, Record<string, { present: number, total: number }>>>({});
@@ -268,39 +281,64 @@ const fetchAttendance = async () => {
    setIsStatementOpen(true)
    setShowAllTransactions(false)
    setPlayerTransactions([])
-   
+   setStatementLoading(true)
+   // Se inicializa con el saldo que ya está en la base. El modal se abre antes
+   // de que resuelva la consulta de abajo, y si en esa ventana el admin aprieta
+   // "Sincronizar saldo", este es el valor que se escribiría: así queda en un
+   // no-op en vez de pisar el saldo con 0.
+   setOwnStatementBalance(player.account_balance)
+
+   // Si el alumno está vinculado, el estado de cuenta que ve el admin es el del
+   // grupo: tiene que coincidir con lo que ve el alumno en su portal.
+   const members = familyMembersOf(players, player)
+   const memberIds = members.map(m => m.id)
+   const isGroup = members.length > 1
+   const namesById = new Map(members.map(m => [m.id, firstName(m.name)]))
+   setStatementIsFamily(isGroup)
+
    const { data: paymentsData } = await supabase
     .from('payments')
     .select('*')
-    .eq('user_id', player.id)
+    .in('user_id', memberIds)
     .or('status.eq.approved,status.eq.completed,method.eq.adjustment,method.eq.cuota')
 
    const transactions: Transaction[] = []
    let realSum = 0;
+   let ownSum = 0;
    paymentsData?.forEach(p => {
      realSum += p.amount;
+     if (p.user_id === player.id) ownSum += p.amount;
+     const owner = isGroup ? namesById.get(p.user_id) : undefined
      if (p.method === 'adjustment') {
-       transactions.push({ id: p.id, type: 'adjustment', amount: p.amount, date: p.date || p.created_at, description: 'Ajuste Administrativo', notes: p.notes })
-     } 
+       transactions.push({ id: p.id, type: 'adjustment', amount: p.amount, date: p.date || p.created_at, description: 'Ajuste Administrativo', notes: p.notes, owner })
+     }
      else if (p.method === 'cuota') {
        const monthLabel = p.proof_url || '';
-       transactions.push({ id: p.id, type: 'fee', amount: p.amount, date: p.date || p.created_at, description: monthLabel.toLowerCase().includes('cuota') ? monthLabel : `Cuota Mensual ${monthLabel}` })
+       transactions.push({ id: p.id, type: 'fee', amount: p.amount, date: p.date || p.created_at, description: monthLabel.toLowerCase().includes('cuota') ? monthLabel : `Cuota Mensual ${monthLabel}`, owner })
      }
      else {
        const isCash = !p.proof_url || p.payment_method === 'cash' || p.payment_method === 'efectivo';
-       transactions.push({ id: p.id, type: 'payment', amount: p.amount, date: p.date || p.created_at, description: isCash ? 'Pago (efectivo)' : 'Pago (transferencia)' })
+       transactions.push({ id: p.id, type: 'payment', amount: p.amount, date: p.date || p.created_at, description: isCash ? 'Pago (efectivo)' : 'Pago (transferencia)', owner })
      }
    })
+   // account_balance del modal = saldo del GRUPO (lo que se muestra).
+   // ownStatementBalance = saldo INDIVIDUAL, único valor que puede escribirse
+   // de vuelta en users.account_balance sin corromper al resto del grupo.
+   setOwnStatementBalance(ownSum)
    setSelectedPlayerForStatement(prev => prev ? {...prev, account_balance: realSum} : null);
    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
    setPlayerTransactions(transactions)
+   setStatementLoading(false)
  }
 
  const syncBalance = async () => {
   if (!selectedPlayerForStatement) return;
   setIsSubmitting(true);
   try {
-    await supabase.from('users').update({ account_balance: selectedPlayerForStatement.account_balance }).eq('id', selectedPlayerForStatement.id);
+    // OJO: se escribe el saldo INDIVIDUAL, nunca el del grupo. Si acá fuera
+    // selectedPlayerForStatement.account_balance (que con vínculo es la suma
+    // familiar), le estaríamos asignando el total del grupo a un solo miembro.
+    await supabase.from('users').update({ account_balance: ownStatementBalance }).eq('id', selectedPlayerForStatement.id);
     fetchPlayers(); alert('Saldo sincronizado con éxito.');
   } catch (error) { alert('Error al sincronizar'); } finally { setIsSubmitting(false); }
  }
@@ -364,6 +402,28 @@ const toggleRole = (roleValue: string) => {
  setSiblingResults(data || [])
  }
 
+ // Arma la previsualización del vínculo. No escribe nada: solo calcula quiénes
+ // quedarían unidos para que el admin lo confirme antes de tocar la base.
+ const requestLink = (targetSibling: any) => {
+   if (!linkingPlayer || !targetSibling) return;
+
+   const byId = new Map<string, string>()
+   byId.set(linkingPlayer.id, linkingPlayer.name)
+   byId.set(targetSibling.id, targetSibling.name)
+
+   const oldFamilyIds = [linkingPlayer.family_id, targetSibling.family_id].filter(Boolean) as string[]
+   if (oldFamilyIds.length > 0) {
+     players.forEach(p => {
+       if (p.family_id && oldFamilyIds.includes(p.family_id)) byId.set(p.id, p.name)
+     })
+   }
+
+   setLinkConfirm({
+     target: targetSibling,
+     members: Array.from(byId, ([id, name]) => ({ id, name })),
+   })
+ }
+
  const executeLink = async (targetSibling: any) => {
     if (!linkingPlayer || !targetSibling) return;
     setProcessingLink(true);
@@ -371,12 +431,27 @@ const toggleRole = (roleValue: string) => {
     try {
       const familyIdToUse = linkingPlayer.family_id || targetSibling.family_id || crypto.randomUUID();
 
-      console.log("Sincronizando familia UUID:", familyIdToUse);
+      // Se unifican los grupos COMPLETOS de ambas partes, no solo las dos
+      // personas del modal. Si cada una ya tenía familia, actualizar solo a
+      // ellas dos dejaría al resto del otro grupo huérfano: perdería el vínculo
+      // sin que nadie lo haya pedido, y su saldo dejaría de compartirse.
+      const idsToUpdate = new Set<string>([linkingPlayer.id, targetSibling.id]);
+      const oldFamilyIds = [linkingPlayer.family_id, targetSibling.family_id].filter(Boolean) as string[];
+
+      if (oldFamilyIds.length > 0) {
+        const { data: currentMembers, error: membersError } = await supabase
+          .from('users')
+          .select('id')
+          .in('family_id', oldFamilyIds);
+
+        if (membersError) throw membersError;
+        currentMembers?.forEach(m => idsToUpdate.add(m.id));
+      }
 
       const { data, error } = await supabase
         .from('users')
         .update({ family_id: familyIdToUse })
-        .in('id', [linkingPlayer.id, targetSibling.id])
+        .in('id', Array.from(idsToUpdate))
         .select();
 
       if (error) throw error;
@@ -385,10 +460,16 @@ const toggleRole = (roleValue: string) => {
         throw new Error("No se encontraron los registros para actualizar.");
       }
 
-      setToastMessage(`Vínculo familiar activo para ${linkingPlayer.name} y ${targetSibling.name}`);
+      const extras = data.length - 2;
+      setToastMessage(
+        extras > 0
+          ? `Vínculo familiar activo para ${linkingPlayer.name} y ${targetSibling.name} (+${extras} del grupo)`
+          : `Vínculo familiar activo para ${linkingPlayer.name} y ${targetSibling.name}`
+      );
       setShowToast(true);
       setTimeout(() => setShowToast(false), 4000);
 
+      setLinkConfirm(null);
       setLinkingPlayer(null);
       setSiblingSearch('');
       setSiblingResults([]);
@@ -609,8 +690,13 @@ const toggleRole = (roleValue: string) => {
   }
 // AGREGÁ ESTE BLOQUE 👇
   let matchesDebt = true;
-  if (filterDebt === 'al_dia') matchesDebt = p.account_balance >= 0;
-  if (filterDebt === 'deudores') matchesDebt = p.account_balance < 0;
+  if (filterDebt === 'al_dia' || filterDebt === 'deudores') {
+    // La deuda se evalúa a nivel GRUPO. Si la madre pagó por los dos hermanos,
+    // el que no pagó queda con saldo individual negativo pero el grupo está al
+    // día: no puede aparecer como moroso.
+    const groupBalance = familyBalanceOf(players, p);
+    matchesDebt = filterDebt === 'deudores' ? groupBalance < 0 : groupBalance >= 0;
+  }
 
   // MODIFICÁ EL RETURN PARA INCLUIR matchesDebt 👇
   // MODIFICÁ EL RETURN PARA INCLUIR matchesRole 👇
@@ -631,7 +717,9 @@ const toggleRole = (roleValue: string) => {
 
  // --- LÓGICA DE EXPORTACIÓN EXCEL ---
 const exportToExcel = () => {
-  const headers = ['Nombre', 'CUIL', 'Email', 'Cursos', 'Sexo', 'Estado', 'Saldo', 'Idiomas'];
+  // Se exportan los dos saldos: el individual (lo que generó y pagó cada uno) y
+  // el del grupo, que es el que define si hay deuda real.
+  const headers = ['Nombre', 'CUIL', 'Email', 'Cursos', 'Sexo', 'Estado', 'Saldo', 'Saldo Familiar', 'Vinculo', 'Idiomas'];
   
   const rows = filteredPlayers.map(p => {
     const dbGender = (p.gender || "").toLowerCase().trim();
@@ -655,6 +743,10 @@ const exportToExcel = () => {
       excelGender,
       p.status === 'active' ? 'Activo' : 'Inactivo',
       p.account_balance || 0,
+      familyBalanceOf(players, p),
+      hasFamily(players, p)
+        ? familyMembersOf(players, p).filter(m => m.id !== p.id).map(m => m.name).join(' / ')
+        : 'Solo',
       sportNames
     ].join(';');
   });
@@ -837,7 +929,18 @@ const exportToExcel = () => {
          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-medium">
   {player.birth_date ? format(parseISO(player.birth_date), 'dd/MM/yyyy') : '-'}
 </td>
-         <td className="px-6 py-4 whitespace-nowrap"><div className={`text-sm font-bold ${player.account_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>{player.account_balance < 0 ? '-' : '+'}${Math.abs(player.account_balance).toLocaleString()}</div></td>
+         <td className="px-6 py-4 whitespace-nowrap">
+           {(() => {
+             const groupBalance = familyBalanceOf(players, player);
+             const inGroup = hasFamily(players, player);
+             return (
+               <>
+                 <div className={`text-sm font-bold ${groupBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>{groupBalance < 0 ? '-' : '+'}${Math.abs(groupBalance).toLocaleString()}</div>
+                 {inGroup && <div className="text-[9px] text-blue-500 font-bold uppercase tracking-wide">Familiar</div>}
+               </>
+             );
+           })()}
+         </td>
          
          <td className="px-6 py-4 align-middle min-w-[200px]">
            <div className="flex h-full w-full rounded-lg border border-gray-100 bg-gray-50 overflow-hidden divide-x divide-gray-200">
@@ -978,10 +1081,17 @@ const exportToExcel = () => {
 
     {/* Columna 2: Saldo */}
     <div className="space-y-0.5 text-right flex-shrink-0">
-      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Saldo</p>
-      <p className={`text-xs font-black ${player.account_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-        {player.account_balance < 0 ? '-' : '+'}${Math.abs(player.account_balance).toLocaleString()}
+      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+        {hasFamily(players, player) ? 'Saldo familiar' : 'Saldo'}
       </p>
+      {(() => {
+        const groupBalance = familyBalanceOf(players, player);
+        return (
+          <p className={`text-xs font-black ${groupBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+            {groupBalance < 0 ? '-' : '+'}${Math.abs(groupBalance).toLocaleString()}
+          </p>
+        );
+      })()}
     </div>
   </div>
 
@@ -1088,11 +1198,57 @@ const exportToExcel = () => {
             {siblingResults.map(s => (
               <div key={s.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
                 <div className="text-left"><p className="font-bold text-sm text-gray-800 text-left">{s.name}</p><p className="text-[10px] text-gray-500 uppercase text-left">CUIL: {s.cuil}</p></div>
-                <button onClick={() => executeLink(s)} disabled={processingLink} className="px-4 py-1.5 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-indigo-700 transition disabled:bg-gray-300">{processingLink ? <Loader2 className="animate-spin size-3"/> : 'Vincular'}</button>
+                <button onClick={() => requestLink(s)} disabled={processingLink} className="px-4 py-1.5 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-indigo-700 transition disabled:bg-gray-300">{processingLink ? <Loader2 className="animate-spin size-3"/> : 'Vincular'}</button>
               </div>
             ))}
             {siblingSearch.length >= 3 && siblingResults.length === 0 && <p className="text-center py-4 text-xs text-gray-400 font-bold uppercase">No hay resultados.</p>}
           </div>
+        </div>
+      </div>
+    </div>
+   )}
+
+   {/* MODAL CONFIRMAR VINCULACIÓN */}
+   {linkConfirm && linkingPlayer && (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-left">
+      <div className="w-full max-w-md rounded-xl bg-white shadow-2xl p-6 relative">
+        <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+          <Users size={20} className="text-indigo-600"/> Confirmar vínculo
+        </h3>
+        <p className="text-sm text-gray-500 mb-4 text-left">
+          {linkConfirm.members.length > 2
+            ? <>Alguna de las dos personas ya pertenece a un grupo. Se van a unir <span className="font-bold text-indigo-600">{linkConfirm.members.length} personas</span> en una sola cuenta:</>
+            : <>Se va a crear un grupo con estas dos personas:</>}
+        </p>
+
+        <div className="max-h-40 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-100 mb-4">
+          {linkConfirm.members.map(m => (
+            <div key={m.id} className="px-3 py-2 text-sm font-bold text-gray-800 text-left">{m.name}</div>
+          ))}
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5">
+          <p className="text-[11px] text-amber-800 font-medium leading-snug text-left">
+            El estado de cuenta pasa a ser <strong>compartido</strong>: todos van a ver los movimientos
+            de los demás y el saldo se suma entre ellos. <strong>No se puede deshacer desde el panel.</strong>
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setLinkConfirm(null)}
+            disabled={processingLink}
+            className="flex-1 py-3 border border-gray-200 text-gray-600 font-bold rounded-xl uppercase text-xs hover:bg-gray-50 transition disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => executeLink(linkConfirm.target)}
+            disabled={processingLink}
+            className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl uppercase text-xs hover:bg-indigo-700 transition flex justify-center items-center disabled:bg-gray-300"
+          >
+            {processingLink ? <Loader2 className="animate-spin h-4 w-4"/> : 'Vincular'}
+          </button>
         </div>
       </div>
     </div>
@@ -1103,15 +1259,40 @@ const exportToExcel = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-left">
       <div className="w-full max-w-lg rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
         <div className="p-5 border-b flex justify-between bg-gray-50 items-center">
-          <div><h2 className="text-xl font-bold text-gray-900">{selectedPlayerForStatement.name}</h2><p className="text-sm text-gray-500 uppercase font-bold tracking-tighter">Estado de Cuenta</p></div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">{selectedPlayerForStatement.name}</h2>
+            <p className="text-sm text-gray-500 uppercase font-bold tracking-tighter">
+              {statementIsFamily ? 'Estado de Cuenta Familiar' : 'Estado de Cuenta'}
+            </p>
+            {statementIsFamily && (
+              <p className="text-[10px] text-blue-600 font-bold mt-0.5">
+                Compartido con {familyMembersOf(players, selectedPlayerForStatement).filter(m => m.id !== selectedPlayerForStatement.id).map(m => m.name).join(', ')}
+              </p>
+            )}
+          </div>
           <div className="flex gap-2">
-            <button onClick={syncBalance} disabled={isSubmitting} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition" title="Sincronizar Saldo"><RefreshCw size={20} className={isSubmitting ? 'animate-spin' : ''}/></button>
+            {/* Deshabilitado mientras carga: si no, se sincronizaría con un saldo
+                que todavía no se terminó de calcular. */}
+            <button onClick={syncBalance} disabled={isSubmitting || statementLoading} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition disabled:opacity-40 disabled:cursor-not-allowed" title="Sincronizar Saldo"><RefreshCw size={20} className={isSubmitting ? 'animate-spin' : ''}/></button>
             <button onClick={() => setIsStatementOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={24}/></button>
           </div>
         </div>
         <div className="p-6 text-center border-b">
-         <span className={`text-4xl font-black tracking-tight ${selectedPlayerForStatement.account_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>{selectedPlayerForStatement.account_balance < 0 ? '-' : '+'}${Math.abs(selectedPlayerForStatement.account_balance).toLocaleString()}</span>
-         <p className="text-sm text-gray-500 mt-1 uppercase font-bold">Saldo Calculado Real</p>
+         {statementLoading ? (
+           <div className="h-10 flex items-center justify-center">
+             <Loader2 className="animate-spin text-gray-300" size={28} />
+           </div>
+         ) : (
+           <span className={`text-4xl font-black tracking-tight ${selectedPlayerForStatement.account_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>{selectedPlayerForStatement.account_balance < 0 ? '-' : '+'}${Math.abs(selectedPlayerForStatement.account_balance).toLocaleString()}</span>
+         )}
+         <p className="text-sm text-gray-500 mt-1 uppercase font-bold">
+           {statementIsFamily ? 'Saldo Calculado del Grupo' : 'Saldo Calculado Real'}
+         </p>
+         {!statementLoading && statementIsFamily && (
+           <p className="text-[10px] text-gray-400 font-medium mt-1">
+             Saldo individual de {firstName(selectedPlayerForStatement.name)}: ${ownStatementBalance.toLocaleString()}
+           </p>
+         )}
         </div>
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-3 text-left">
           {playerTransactions.length === 0 ? (<p className="text-center text-gray-400 text-sm py-4 uppercase font-bold text-left">Sin movimientos confirmados.</p>) : (
@@ -1122,7 +1303,10 @@ const exportToExcel = () => {
                   {t.type === 'payment' ? <ArrowUpCircle size={20}/> : (t.type === 'adjustment' ? <FileText size={20}/> : <ArrowDownCircle size={20}/>)}
                  </div>
                  <div className="text-left">
-                  <p className="font-bold text-sm text-gray-900 text-left">{t.description}</p>
+                  <p className="font-bold text-sm text-gray-900 text-left">
+                    {t.description}
+                    {t.owner && <span className="text-gray-400 font-medium"> — {t.owner}</span>}
+                  </p>
                   {t.type === 'adjustment' && t.notes && (
                    <p className="text-[10px] text-gray-400 italic uppercase font-medium text-left">{t.notes}</p>
                   )}

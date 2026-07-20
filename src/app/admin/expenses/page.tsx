@@ -84,18 +84,6 @@ useEffect(() => {
     }).filter(item => item.value > 0);
   }, [expenses]);
 
-  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
-    const RADIAN = Math.PI / 180;
-    const radius = outerRadius + 25; 
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    return (
-      <text x={x} y={y} fill="#1e1b4b" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-[11px] font-black">
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
-  };
-
   const fetchMonthlyYearlyData = async () => {
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();

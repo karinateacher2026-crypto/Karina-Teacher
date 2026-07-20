@@ -28,6 +28,25 @@ export default function AdminLayout({
         // Si no hay sesión, lo mandamos al login inmediatamente
         router.push('/')
       } else {
+        // Candado de rol: /admin es solo para admin u organizer. Sin esto, un
+        // alumno logueado que escriba la URL ve el panel entero: vacío por RLS,
+        // pero visible. El return corta antes del setIsLoading(false), así el
+        // panel no llega a pintarse ni por un instante.
+        const { data: profile } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        const roles: string[] = profile?.role
+          ? (Array.isArray(profile.role) ? profile.role : [profile.role])
+          : []
+
+        if (!roles.includes('admin') && !roles.includes('organizer')) {
+          router.replace('/portal')
+          return
+        }
+
         setIsLoading(false)
 
         const { count } = await supabase

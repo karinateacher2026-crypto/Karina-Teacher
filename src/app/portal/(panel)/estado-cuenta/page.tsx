@@ -8,8 +8,9 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { 
   Loader2, Clock, RotateCw, XCircle, Settings, 
-  ArrowDownLeft, ArrowUpRight, Eye, X, ExternalLink
+  ArrowDownLeft, ArrowUpRight, Eye, X, ExternalLink, Users
 } from 'lucide-react';
+import { getFamilyGroup, firstName, type FamilyGroup } from '@/lib/family';
 
 export default function EstadoCuentaPage() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function EstadoCuentaPage() {
   const [userSportsInfo, setUserSportsInfo] = useState<any[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileType, setFileType] = useState<'image' | 'pdf'>('image');
+  const [family, setFamily] = useState<FamilyGroup | null>(null);
 
   const fetchPageData = async () => {
     try {
@@ -61,13 +63,19 @@ export default function EstadoCuentaPage() {
         setUserSportsInfo(formatted);
       }
 
-      // 3. Obtener el historial de pagos del socio
+      // 3. Resolver el grupo familiar. Si el alumno está vinculado, el estado de
+      //    cuenta pasa a ser el del grupo: se ven los movimientos de todos y el
+      //    saldo es la suma. Sin vínculo, devuelve un grupo de uno solo.
+      const familyGroup = await getFamilyGroup(storedId);
+      setFamily(familyGroup);
+
+      // 4. Historial de pagos de todo el grupo (o solo el propio si no hay vínculo)
       const { data: paymentsData } = await supabase
         .from('payments')
         .select('*')
-        .eq('user_id', storedId)
+        .in('user_id', familyGroup.memberIds)
         .order('date', { ascending: false });
-      
+
       setPayments(paymentsData || []);
 
     } catch (error) {
@@ -113,8 +121,16 @@ export default function EstadoCuentaPage() {
 
   if (!user) return null;
 
-  const visualBalance = user?.account_balance || 0;
+  // Con vínculo el saldo mostrado es el del grupo; sin vínculo, el propio.
+  const isFamily = family?.isFamily ?? false;
+  const visualBalance = family ? family.balance : (user?.account_balance || 0);
   const displayedPayments = showAllPayments ? payments : payments?.slice(0, 5);
+
+  // Para etiquetar cada movimiento con el nombre de quien lo generó. Solo se
+  // usa cuando hay vínculo: sin él, la pantalla queda idéntica a como estaba.
+  const memberNames = new Map(
+    (family?.members || []).map(m => [m.id, firstName(m.name)])
+  );
 
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-4 text-left">
@@ -138,11 +154,28 @@ export default function EstadoCuentaPage() {
             {/* Contenedor del Estado de Cuenta + Botón Pagar */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-left w-full md:w-auto">
                 <div className="text-left">
-                    <p className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-left">ESTADO DE CUENTA (CONFIRMADO)</p>
+                    <p className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest mb-2 text-left">
+                      {isFamily ? 'ESTADO DE CUENTA FAMILIAR (CONFIRMADO)' : 'ESTADO DE CUENTA (CONFIRMADO)'}
+                    </p>
                     <h3 className={`text-2xl md:text-4xl font-black break-words text-left ${visualBalance < 0 ? 'text-red-600' : (visualBalance === 0 ? 'text-gray-400' : 'text-green-600')} text-left`}>
                         {visualBalance < 0 ? 'Debe: ' : (visualBalance === 0 ? 'Saldo: ' : 'A favor: ')} 
                         ${Math.abs(visualBalance).toLocaleString()}
                     </h3>
+                    {isFamily && (
+                      <div className="mt-2 flex items-start gap-1.5 text-left">
+                        <Users size={12} className="text-indigo-500 mt-0.5 shrink-0" />
+                        <p className="text-[10px] text-gray-500 font-medium leading-tight text-left">
+                          Saldo compartido con{' '}
+                          <span className="font-bold text-indigo-600">
+                            {family?.members
+                              .filter(m => m.id !== user.id)
+                              .map(m => firstName(m.name))
+                              .join(', ')}
+                          </span>
+                          . Cualquier pago del grupo se descuenta de este total.
+                        </p>
+                      </div>
+                    )}
                 </div>
             </div>
 
@@ -238,6 +271,9 @@ export default function EstadoCuentaPage() {
                                 <div className="flex-1 min-w-0 text-left">
                                     <p className="font-bold text-xs md:text-sm text-gray-800 whitespace-normal break-words text-left">
                                         {displayTitle}
+                                        {isFamily && memberNames.get(p.user_id) && (
+                                          <span className="text-gray-400 font-medium"> — {memberNames.get(p.user_id)}</span>
+                                        )}
                                     </p>
                                     {isAdjustment && p.notes && (
                                         <p className="text-[10px] text-blue-500 italic font-medium truncate max-w-[200px]">{p.notes}</p>
